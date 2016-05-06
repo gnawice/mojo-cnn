@@ -7,7 +7,7 @@ The mojo cnn API provides a 'smart training' option which abstracts the manageme
 Latest change status is on the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki). 
 
 Features:
-+ Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, (Fractional Max Pool, Maxout-like pooling, Concatenation all in progress)
++ Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, (Fractional Max Pool, Maxout-like pooling, Concatenation all in progress). [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
 + Activation Functions: Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, (Softmax in progress)
 + Optimization: Stochastic Gradient Descent, RMSProp, AdaGrad, Adam
 + Loss Functions: Mean Squared Error, Cross Entropy
