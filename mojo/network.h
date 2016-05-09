@@ -419,15 +419,26 @@ public:
 		if (_thread_number > _thread_count) bail("need to call allow_threads()");
 		if (_thread_number >= (int)layer_sets.size()) bail("need to call allow_threads()");
 
-		// clear nodes to zero 
-		__for__(auto layer __in__ layer_sets[_thread_number]) layer->node.fill(0.f); 
-
+		// clear nodes to zero & find input layers
+		std::vector<base_layer *> inputs;
+		__for__(auto layer __in__ layer_sets[_thread_number])
+		{
+			if (dynamic_cast<input_layer*> (layer) != NULL)  inputs.push_back(layer);
+			layer->node.fill(0.f);
+		}
 		// first layer assumed input. copy input to it 
-		for (int i = 0; i < layer_sets[_thread_number][0]->node.size(); i++)
-			layer_sets[_thread_number][0]->node.x[i] = in[i];
-		//memcpy(layer_sets[_thread_number][0]->node.x, in, 
-		//	sizeof(float)*layer_sets[_thread_number][0]->node.size());
-
+		const float *in_ptr = in;
+		//base_layer * layer = layer_sets[_thread_number][0];
+		//memcpy(layer->node.x, in, sizeof(float)*layer->node.size());
+		
+		__for__(auto layer __in__ inputs)
+		{
+			memcpy(layer->node.x, in_ptr, sizeof(float)*layer->node.size());
+			in_ptr += layer->node.size();
+		}
+		//for (int i = 0; i < layer->node.size(); i++)
+		//	layer_sets[_thread_number][0]->node.x[i] = in[i];
+		
 		// for all layers
 		__for__(auto layer __in__ layer_sets[_thread_number])
 		{
@@ -806,8 +817,11 @@ public:
 					_running_sum_E /= (double)s;
 					std::sort(_running_E.begin(), _running_E.end());
 					float top_fraction = (float)_running_sum_E*10.f;
-					if (top_fraction > 0.8f) top_fraction = 0.8f;
-					if (top_fraction < 0.03f) top_fraction = 0.03f;
+					const float max_fraction = 0.8f;
+					const float min_fraction = 0.03f;
+
+					if (top_fraction > max_fraction) top_fraction = max_fraction;
+					if (top_fraction < min_fraction) top_fraction = min_fraction;
 					int index = s - 1 - (int)(top_fraction*(s - 1));
 
 					if (_running_E[index] > 0) _skip_energy_level = _running_E[index];
@@ -824,6 +838,75 @@ public:
 		}  // omp critical
 
 
+	}
+
+	// finish back propogation through the hidden layers
+	void backward_hidden(const int my_batch_index, const int thread_number)
+	{
+		const int layer_cnt = (int)layer_sets[thread_number].size();
+		const int last_layer_index = layer_cnt - 1;
+		base_layer *layer;// = layer_sets[thread_number][last_layer_index];
+
+		// update hidden layers
+		// start at lower layer and push information up to previous layer
+		// handle dropout first
+
+		for (int k = last_layer_index; k >= 0; k--)
+		{
+			layer = layer_sets[thread_number][k];
+			// all the signals should be summed up to this layer by now, so we go through and take the grad of activiation
+			int nodes = layer->node.size();
+			// already did last layer, so skip it
+			if (k< last_layer_index)
+				for (int i = 0; i< nodes; i++)
+					layer->delta.x[i] *= layer->df(layer->node.x, i, nodes);
+
+			// now pass that signal upstream
+			__for__(auto &link __in__ layer->backward_linked_layers) // --- 50% of time this loop
+			{
+				base_layer *p_top = link.second;
+				// note all the delta[connections[i].second] should have been calculated by time we get here
+				layer->distribute_delta(*p_top, *W[link.first]);
+			}
+		}
+
+
+		// update weights - shouldn't matter the direction we update these 
+		// we can stay in backwards direction...
+		// it was not faster to combine distribute_delta and increment_w into the same loop
+		int size_W = (int)W.size();
+		dW_sets[my_batch_index].resize(size_W);
+		dbias_sets[my_batch_index].resize(layer_cnt);
+		for (int k = last_layer_index; k >= 0; k--)
+		{
+			layer = layer_sets[thread_number][k];
+
+			__for__(auto &link __in__ layer->backward_linked_layers)
+			{
+				base_layer *p_top = link.second;
+				int w_index = (int)link.first;
+				//if (dynamic_cast<max_pooling_layer*> (layer) != NULL)  continue;
+				layer->calculate_dw(*p_top, dW_sets[my_batch_index][w_index]);// --- 20%
+																			  // moved this out to sync_mini_batch();
+																			  //_solver->increment_w( W[w_index],w_index, dW_sets[_batch_index][w_index]);  // -- 10%
+			}
+			if (dynamic_cast<convolution_layer*> (layer) != NULL)  continue;
+
+			dbias_sets[my_batch_index][k] = layer->delta;
+		}
+		// if all batches finished, update weights
+		lock_batch();
+		batch_open[my_batch_index] = BATCH_COMPLETE;
+		int next_index = get_next_open_batch();
+		if (next_index == BATCH_FILLED_COMPLETE) // all complete
+			sync_mini_batch(); // resets _batch_index to 0
+		unlock_batch();
+	}
+
+	bool train_target(float *in, float *target, int _thread_number = -1)
+	{
+
+		return true;
 	}
 
 	// after starting epoch, call this to train against a class label
@@ -877,18 +960,16 @@ public:
 			cost_activation_type = 1;
 		else if ((std::string("tanh").compare(layer->p_act->name) == 0) &&
 			(std::string("cross_entropy").compare(_cost_function->name) == 0)) 
-			cost_activation_type = 2;
+			cost_activation_type = 4;
 	
 		for (int j = 0; j < layer_node_size; j++)
 		{
-			if(cost_activation_type>0)
-				layer->delta.x[j] = cost_activation_type*(layer->node.x[j]- target[j]);
-			else
-				layer->delta.x[j] = _cost_function->d_cost(layer->node.x[j], target[j])*layer->df(layer->node.x, j, layer_node_size);
-
+			 // here the delta is just x-t if cost_type > 0
+			if(cost_activation_type>0) layer->delta.x[j] = cost_activation_type*(layer->node.x[j]- target[j]);
+			else  layer->delta.x[j] = _cost_function->d_cost(layer->node.x[j], target[j])*layer->df(layer->node.x, j, layer_node_size);
+			// pick best response
 			if (layer->node.x[max_j_out] < layer->node.x[j]) max_j_out = j;
 			// for better E maybe just look at 2 highest scores so zeros don't dominate 
-
 			E += mse::cost(layer->node.x[j], target[j]);
 		}
 	
@@ -909,61 +990,7 @@ public:
 			return false;  // return without doing training
 		}
 
-
-		// update hidden layers
-		// start at lower layer and push information up to previous layer
-		// handle dropout first
-		
-		for(int k= last_layer_index; k>=0; k--)
-		{
-			layer = layer_sets[thread_number][k];
-			// all the signals should be summed up to this layer by now, so we go through and take the grad of activiation
-			int nodes=layer->node.size();
-			// already did last layer, so skip it
-			if( k< last_layer_index)
-				for (int i=0; i< nodes; i++) 
-					layer->delta.x[i] *= layer->df(layer->node.x, i, nodes);
-
-			// now pass that signal upstream
-			__for__ (auto &link __in__ layer->backward_linked_layers) // --- 50% of time this loop
-			{
-				base_layer *p_top=link.second;
-				// note all the delta[connections[i].second] should have been calculated by time we get here
-				layer->distribute_delta(*p_top, *W[link.first]);
-			}
-		}
-		
-
-		// update weights - shouldn't matter the direction we update these 
-		// we can stay in backwards direction...
-		// it was not faster to combine distribute_delta and increment_w into the same loop
-		int size_W=(int)W.size();
-		dW_sets[my_batch_index].resize(size_W);
-		dbias_sets[my_batch_index].resize(layer_cnt);
-		for(int k= last_layer_index; k>=0; k--)
-		{
-			layer = layer_sets[thread_number][k];
-			
-			__for__ (auto &link __in__ layer->backward_linked_layers)
-			{
-				base_layer *p_top =link.second;
-				int w_index = (int)link.first;
-				//if (dynamic_cast<max_pooling_layer*> (layer) != NULL)  continue;
-				layer->calculate_dw(*p_top, dW_sets[my_batch_index][w_index]);// --- 20%
-				// moved this out to sync_mini_batch();
-				//_solver->increment_w( W[w_index],w_index, dW_sets[_batch_index][w_index]);  // -- 10%
-			}
-			if( dynamic_cast<convolution_layer*> (layer) != NULL)  continue;
-	
-			dbias_sets[my_batch_index][k] = layer->delta;
-		}
-		// if all batches finished, update weights
-		lock_batch();
-		batch_open[my_batch_index]=BATCH_COMPLETE;
-		int next_index=get_next_open_batch();
-		if(next_index==BATCH_FILLED_COMPLETE) // all complete
-			sync_mini_batch(); // resets _batch_index to 0
-		unlock_batch();
+		backward_hidden(my_batch_index, thread_number);
 
 		return true;
 	}
