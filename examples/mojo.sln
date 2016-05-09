@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25123.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test.vcxproj", "{855AB941-7417-414E-8FBA-8581CAFB03EA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_omp", "test_omp.vcxproj", "{CA187A64-EC07-4C20-A96D-A60C87FDD402}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "train_mnist", "train_mnist.vcxproj", "{DA6A4565-A674-4210-B93B-7870E038FE65}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "mojo", "mojo", "{CD27F5B7-0A24-4057-9272-CB428B78AEF0}"
+	ProjectSection(SolutionItems) = preProject
+		..\mojo\activation.h = ..\mojo\activation.h
+		..\mojo\core_math.h = ..\mojo\core_math.h
+		..\mojo\cost.h = ..\mojo\cost.h
+		..\mojo\layer.h = ..\mojo\layer.h
+		..\mojo\loss.h = ..\mojo\loss.h
+		..\mojo\mojo.h = ..\mojo\mojo.h
+		..\mojo\network.h = ..\mojo\network.h
+		..\mojo\solver.h = ..\mojo\solver.h
+		..\mojo\util.h = ..\mojo\util.h
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "train_cifar", "train_cifar.vcxproj", "{DA6A4565-A674-4210-B93B-7870E038FE69}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		No Opt|x64 = No Opt|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.No Opt|x64.ActiveCfg = Release|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.No Opt|x64.Build.0 = Release|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release|x64.ActiveCfg = Release|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release|x64.Build.0 = Release|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.No Opt|x64.ActiveCfg = Release|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.No Opt|x64.Build.0 = Release|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release|x64.ActiveCfg = Release|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release|x64.Build.0 = Release|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.No Opt|x64.ActiveCfg = No Opt|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.No Opt|x64.Build.0 = No Opt|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release|x64.ActiveCfg = Release|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release|x64.Build.0 = Release|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.No Opt|x64.ActiveCfg = No Opt|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.No Opt|x64.Build.0 = No Opt|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release|x64.ActiveCfg = Release|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
