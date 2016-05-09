@@ -41,9 +41,9 @@ cnn.set_mini_batch_size(24);
 	
 // add layer definitions	
 cnn.push_back("I1","input 28 28 1");            // MNIST is 28x28x1
-cnn.push_back("C1","convolution 5 5 15 elu");   // 5x5 kernel, 12 maps.  out size is 28-5+1=24
+cnn.push_back("C1","convolution 5 5 20 elu");   // 5x5 kernel, 20 maps.  out size is 28-5+1=24
 cnn.push_back("P1","semi_stochastic_pool 4 4"); // pool 4x4 blocks, stride 4. out size is 6
-cnn.push_back("C2","convolution 5 5 150 elu");  // 5x5 kernel, 150 maps.  out size is 6-5+1=2
+cnn.push_back("C2","convolution 5 5 200 elu");  // 5x5 kernel, 200 maps.  out size is 6-5+1=2
 cnn.push_back("P2","semi_stochastic_pool 2 2"); // pool 2x2 blocks. out size is 2/2=1 
 cnn.push_back("FC1","fully_connected 100 identity");// fully connected 100 nodes 
 cnn.push_back("FC2","fully_connected 10 tanh"); 
