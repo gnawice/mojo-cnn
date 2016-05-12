@@ -12,15 +12,18 @@ dropout 0.40
 fully_connected 10 tanh
   ```  
 
-+ **mojo_cifar.model:** CIFAR-10 model 81.08% accuracy (18.9% error) No mean subtraction. Random mirror and +/-2 pixel translations on training data. No rotation or scale augmentation.  Three convolution layers. When subtracting mean, you can get to the same answer a little faster (2 hr instead of 2 hr 10 min)
++ **mojo_cifar.model:** CIFAR-10 model 82.56% accuracy (17.44% error) No mean subtraction. Random mirror and +/-2 pixel translations on training data. No rotation or scale augmentation.  Three main convolution layers not including 1x1 layers. 
   ```
 input 32x32x3 identity  
-convolution 5x5 32 elu  
+convoltuion 1x1x9
+convolution 5x5x32 elu  
 semi_stochastic_pool 2 2  
-convolution 5x5 32 elu  
+convoltuion 1x1x32
+convolution 5x5x32 elu  
 semi_stochastic_pool 2 2  
-convolution 5x5 64 elu  
+convolution 5x5x64 elu  
+dropout 0.2  
 fully_connected 100 identity  
-dropout 0.25  
+dropout 0.4  
 fully_connected 10 tanh  
   ```
