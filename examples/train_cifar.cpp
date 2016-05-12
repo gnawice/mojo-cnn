@@ -188,7 +188,7 @@ int main()
 		std::cout << "  test accuracy:\t" << accuracy << "% (" << 100.f - accuracy << "% error)      " << std::endl;
 
 		// save model
-		std::string model_file = "../tmp/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
+		std::string model_file = "../models/snapshots/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
 		cnn.write(model_file);
 		std::cout << "  saved model:\t\t" << model_file << std::endl << std::endl;
 
@@ -200,7 +200,7 @@ int main()
 		log_out += model_file;
 		log.add_table_row(cnn.estimated_accuracy, accuracy, log_out);
 		// will write this every epoch
-		log.write("../tmp/mojo_cifar_log.htm");
+		log.write("../models/snapshots/mojo_cifar_log.htm");
 
 		// can't seem to improve
 		if (cnn.elvis_left_the_building())

@@ -55,6 +55,10 @@
   <ItemGroup>
     <ClCompile Include="test_omp.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cifar_parser.h" />
+    <ClInclude Include="mnist_parser.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

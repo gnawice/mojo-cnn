@@ -165,35 +165,32 @@ namespace sigmoid
 	const char name[]="sigmoid";
 };
 
-/*
-namespace softmax 
+namespace softmax
 {
-	void f(float *in_out, int size=0) 
-	{ 
-		float max= in_out[0];
-		for(int i=1; i<size; i++) if(in_out[i] > max) max= in_out[i];
-	
-		float denom=0;
-		for(int i=0; i<size; i++) denom+= std::exp(in_out[i] - max);
-		
-		for(int i=0; i<size; i++)
-			in_out[i] = std::exp(in_out[i] - max)/ denom;
-
-	}
-
-	void df(float *in_out, int size=0) 
+	inline float f(float *in, int i, const int size, const float bias)
 	{
-		for(int i=0; i<size; i++) 
-		{
-			in_out[i] = in_out[i]*(1.f-in_out[i]);
-		}
+		float max = in[0];
+		for (int j = 1; j<size; j++) if (in[j] > max) max = in[j];
+
+		float denom = 0;
+		for (int j = 0; j<size; j++) denom += std::exp(in[j] - max);
+
+		return std::exp(in[i] - max) / denom;
 	}
 
-	// oj = exp (zj - m - log{sum_i{exp(zi-m)}})
+	inline float df(float *in, int i, const int size)
+	{
+		return in[i] * (1.f - in[i]);
+		//		for(int j=0; j<size; j++) 
+		//		{
+		//			if(i==j) in[i]= in[i] * (1.f - in[i]);
+		//			else in[i] = in[i]*in[j];
+		//		}
+	}
 
-
+	const char name[] = "softmax";
 };
-*/
+
 namespace none
 {
 	inline float f(float *in, int i, int size, float bias) {return 0;};
@@ -220,6 +217,7 @@ activation_function* new_activation_function(std::string act)
 	if(act.compare(sigmoid::name)==0) { p->f = &sigmoid::f; p->df = &sigmoid::df; p->name=sigmoid::name; return p;}
 	if(act.compare(elu::name)==0) { p->f = &elu::f; p->df = &elu::df; p->name=elu::name; return p;}
 	if(act.compare(none::name)==0) { p->f = &none::f; p->df = &none::df; p->name=none::name; return p;}
+	if(act.compare(softmax::name) == 0) { p->f = &softmax::f; p->df = &softmax::df; p->name = softmax::name; return p; }
 	delete p;
 	return NULL;
 }

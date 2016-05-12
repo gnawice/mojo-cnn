@@ -952,7 +952,13 @@ public:
 		// was passing this in, but may as well just create it on the fly
 		// a vector mapping the label index to the desired target output node values
 		// all -1 except target node 1
-		std::vector<float> target(layer_node_size, -1);
+		std::vector<float> target;
+		if((std::string("sigmoid").compare(layer->p_act->name) == 0)
+			|| (std::string("softmax").compare(layer->p_act->name) == 0))
+			target = std::vector<float>(layer_node_size, 0);
+		else
+			target = std::vector<float>(layer_node_size, -1);
+
 		if(label_index>=0 && label_index<layer_node_size) target[label_index] = 1;
 
 
@@ -962,10 +968,14 @@ public:
 		if ((std::string("sigmoid").compare(layer->p_act->name) == 0) &&
 			(std::string("cross_entropy").compare(_cost_function->name) == 0)) 
 			cost_activation_type = 1;
+		else if ((std::string("softmax").compare(layer->p_act->name) == 0) &&
+			(std::string("cross_entropy").compare(_cost_function->name) == 0))
+			cost_activation_type = 1;
 		else if ((std::string("tanh").compare(layer->p_act->name) == 0) &&
 			(std::string("cross_entropy").compare(_cost_function->name) == 0)) 
 			cost_activation_type = 4;
 	
+
 		for (int j = 0; j < layer_node_size; j++)
 		{
 			 // here the delta is just x-t if cost_type > 0

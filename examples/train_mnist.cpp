@@ -46,7 +46,7 @@
 #include "mnist_parser.h"
 
 const int mini_batch_size = 20;
-const float initial_learning_rate = 0.03f;
+const float initial_learning_rate = 0.02f;
 std::string solver = "adam";
 std::string data_path="../data/mnist/";
 using namespace mnist;
@@ -61,7 +61,7 @@ float test(mojo::network &cnn, const std::vector<std::vector<float>> &test_image
 	int correct_predictions = 0;
 	const int record_cnt = (int)test_images.size();
 
-#pragma omp parallel num_threads(8)
+#pragma omp parallel
 #pragma omp for reduction(+:correct_predictions) schedule(dynamic)
 	for (int k = 0; k<record_cnt; k++)
 	{
@@ -98,16 +98,19 @@ int main()
 	// configure network 
 	cnn.push_back("I1", "input 28 28 1");			// MNIST is 28x28x1
 	cnn.push_back("C1", "convolution 5 5 20 elu");	// 5x5 kernel, 20 maps.  out size is 28-5+1=24
-	cnn.push_back("P1", "semi_stochastic_pool 4");	// pool 4x4 blocks. outsize is 6
-	cnn.push_back("C2", "convolution 5 5 200 elu");	// 5x5 kernel, 200 maps.  out size is 6-5+1=2
-	cnn.push_back("P2", "semi_stochastic_pool 2");	// pool 2x2 blocks. outsize is 2/2=1 
-	cnn.push_back("D2", "dropout 0.2");
+	cnn.push_back("P1", "semi_stochastic_pool 3");	// pool 3x3 blocks. outsize is 8
+	cnn.push_back("D3", "dropout 0.1");
+	cnn.push_back("C2", "convolution 5 5 200 elu");	// 5x5 kernel, 200 maps.  out size is 8-5+1=4
+	cnn.push_back("P2", "semi_stochastic_pool 4");	// pool 4x4 blocks. outsize is 1 
+	cnn.push_back("D2", "dropout 0.3");
 	cnn.push_back("FC1", "fully_connected 100 identity");// fully connected 100 nodes 
-	cnn.push_back("D1", "dropout 0.3");
+	cnn.push_back("D1", "dropout 0.4");
 	cnn.push_back("FC2", "fully_connected 10 tanh");
+
 
 	// connect all the layers. Call connect() manually for all layer connections if you need more exotic networks.
 	cnn.connect_all();
+	
 	std::cout << "==  Network Configuration  ====================================================" << std::endl;
 	std::cout << cnn.get_configuration() << std::endl;
 
@@ -162,7 +165,7 @@ int main()
 		std::cout << "  test accuracy:\t" << accuracy << "% (" << 100.f - accuracy << "% error)      " << std::endl;
 
 		// save model
-		std::string model_file = "../tmp/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
+		std::string model_file = "../models/snapshots/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
 		cnn.write(model_file);
 		std::cout << "  saved model:\t\t" << model_file << std::endl << std::endl;
 
@@ -174,7 +177,7 @@ int main()
 		log_out += model_file;
 		log.add_table_row(cnn.estimated_accuracy, accuracy, log_out);
 		// will write this every epoch
-		log.write("../tmp/mojo_mnist_log.htm");
+		log.write("../models/snapshots/mojo_mnist_log.htm");
 
 		// can't seem to improve
 		if (cnn.elvis_left_the_building())
