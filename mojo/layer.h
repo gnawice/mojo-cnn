@@ -38,6 +38,7 @@
 namespace mojo
 {
 
+#define bail(txt) {std::cerr << txt; throw;}
 #define int2str(a) std::to_string((long long)a)
 #define float2str(a) std::to_string((long double)a)
 
@@ -47,9 +48,12 @@ namespace mojo
 // all other layers derived from this
 class base_layer 
 {
+protected:
+	bool _has_weights;
 public:
 	activation_function *p_act;
-	
+
+	bool has_weights() {return _has_weights;}
 	int pad_cols, pad_rows;
 	matrix node;
 	matrix bias; // this is something that maybe should be in the same class as the weights... but whatever. handled differently for different layers
@@ -66,7 +70,7 @@ public:
 #endif
 	virtual void accumulate_signal(const base_layer &top_node, const matrix &w, const int train =0) =0;
 
-	base_layer(const char* layer_name, int _w, int _h=1, int _c=1) : node(_w, _h, _c), bias(_w, _h, _c), p_act(NULL), name(layer_name), pad_cols(0), pad_rows(0)
+	base_layer(const char* layer_name, int _w, int _h=1, int _c=1) : node(_w, _h, _c), bias(_w, _h, _c), p_act(NULL), name(layer_name), _has_weights(true), pad_cols(0), pad_rows(0)
 		#ifndef NO_TRAINING_CODE
 		,delta(_w,_h,_c)
 		#endif
@@ -75,6 +79,8 @@ public:
 
 	virtual void resize(int _w, int _h=1, int _c=1)
 	{
+		if (_w<1) _w = 1; if (_h<1) _h = 1; if (_c<1) _c = 1;
+
 		node =matrix(_w,_h,_c);
 		bias =matrix(_w,_h,_c);
 		bias.fill(0.);
@@ -86,20 +92,32 @@ public:
 	virtual ~base_layer(){if(p_act) delete p_act;}
 	virtual int fan_size() {return node.chans*node.rows*node.cols;}
 
-	virtual void activate_nodes() {for (int i=0; i<node.size(); i++)  node.x[i]=p_act->f(node.x, i, node.size(), bias.x[i]);}
+	virtual void activate_nodes()
+	{
+		if (p_act)
+		{
+			for (int i = 0; i < node.size(); i++)  node.x[i] = p_act->f(node.x, i, node.size(), bias.x[i]);
+		}
+	}
+	
 	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
 	{
 		top.forward_linked_layers.push_back(std::make_pair((int)weight_mat_index,this));
 		#ifndef NO_TRAINING_CODE
 		backward_linked_layers.push_back(std::make_pair((int)weight_mat_index,&top));
 		#endif
-		int rows=node.cols*node.rows*node.chans; 
-		int cols=top.node.cols*top.node.rows*top.node.chans; 
-		return new matrix(cols,rows, 1);
+		if (_has_weights)
+		{
+			int rows = node.cols*node.rows*node.chans;
+			int cols = top.node.cols*top.node.rows*top.node.chans;
+			return new matrix(cols, rows, 1);
+		}
+		else
+			return new matrix(1, 1, 1);	
 	}
 
-	inline float f(float *in, int i, int size, float bias) {return p_act->f(in, i, size, bias);};
-	inline float df(float *in, int i, int size) {return p_act->df(in, i, size);};
+	//inline float f(float *in, int i, int size, float bias) {return p_act->f(in, i, size, bias);};
+	inline float df(float *in, int i, int size) { if (p_act) return p_act->df(in, i, size); else return 1.f; };
 	virtual std::string get_config_string() =0;	
 };
 
@@ -179,19 +197,21 @@ protected:
 	// uses a map to connect pooled result to top layer
 	std::vector<int> _max_map;
 public:
-	max_pooling_layer(const char *layer_name, int pool_size, activation_function *p = NULL) : base_layer(layer_name, 1)
+	max_pooling_layer(const char *layer_name, int pool_size) : base_layer(layer_name, 1)
 	{
-		p_act = p; _stride = pool_size; _pool_size = pool_size; p_act = new_activation_function("identity"); //layer_type=pool_type;
+		 _stride = pool_size; _pool_size = pool_size; //layer_type=pool_type;
+		_has_weights = false;
 	}
-	max_pooling_layer(const char *layer_name, int pool_size, int stride, activation_function *p=NULL ) : base_layer(layer_name, 1)
+	max_pooling_layer(const char *layer_name, int pool_size, int stride ) : base_layer(layer_name, 1)
 	{
-		p_act=p; _stride= stride; _pool_size=pool_size; p_act=new_activation_function("identity"); //layer_type=pool_type;
+		_stride= stride; _pool_size=pool_size;  //layer_type=pool_type;
+		_has_weights = false;
 	}
 	virtual  ~max_pooling_layer(){}
 	virtual std::string get_config_string() {std::string str="max_pool "+int2str(_pool_size) +" "+ int2str(_stride) +"\n"; return str;}
 
 	// ToDo would like delayed activation of conv layer if available
-	virtual void activate_nodes(){ return;}
+//	virtual void activate_nodes(){ return;}
 	virtual void resize(int _w, int _h=1, int _c=1)
 	{
 		if(_w<1) _w=1; if(_h<1) _h=1; if(_c<1) _c=1;
@@ -203,24 +223,20 @@ public:
 	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train =1) {}
 	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
 	{
-		// wasteful to add weight matrix (1x1x1), but makes other parts of code more OO
-		// bad will happen if try to put more than one pool layer
-		top.forward_linked_layers.push_back(std::make_pair(weight_mat_index,this));
-		int pool_size= _pool_size;
+		// need to set the size of this layer
+		// can really only handle one connection comming in to this
+		int pool_size = _pool_size;
 		int w = (top.node.cols) / pool_size;
 		int h = (top.node.rows) / pool_size;
 		if (_stride != _pool_size)
 		{
-			w = 1+((top.node.cols - _pool_size) / _stride);
-			h = 1+((top.node.rows - _pool_size) / _stride);
+			w = 1 + ((top.node.cols - _pool_size) / _stride);
+			h = 1 + ((top.node.rows - _pool_size) / _stride);
 		}
-					
-//			resize((top.node.cols-2*pad_cols)/pool_size, (top.node.rows-2*pad_rows)/pool_size, top.node.chans);
-		resize(w,h, top.node.chans);
-#ifndef NO_TRAINING_CODE
-		backward_linked_layers.push_back(std::make_pair(weight_mat_index,&top));
-#endif
-		return new matrix(1,1,1);
+		resize(w, h, top.node.chans);
+
+		return base_layer::new_connection(top, weight_mat_index);
+
 	}
 
 	// this is downsampling
@@ -322,8 +338,8 @@ public:
 	virtual void distribute_delta(base_layer &top, const matrix &w, const int train =1)
 	{
 		int *p_map = _max_map.data();
-		for(int k=0; k<(int)_max_map.size(); k++) 
-			top.delta.x[p_map[k]]+=delta.x[k];
+		const int s = (int)_max_map.size();
+		for(int k=0; k<s; k++) top.delta.x[p_map[k]]+=delta.x[k];
 	}
 #endif
 };
@@ -334,14 +350,8 @@ public:
 class semi_stochastic_pooling_layer :  public max_pooling_layer
 {
 public:
-	semi_stochastic_pooling_layer(const char *layer_name, int pool_size, activation_function *p = NULL) : max_pooling_layer(layer_name, pool_size)
-	{
-	//	p_act = p; _stride = pool_size; _pool_size = pool_size; p_act = new_activation_function("identity"); //layer_type=pool_type;
-	}
-	semi_stochastic_pooling_layer(const char *layer_name, int pool_size, int stride, activation_function *p = NULL) : max_pooling_layer(layer_name, pool_size, stride)
-	{
-		//p_act = p; _stride = stride; _pool_size = pool_size; p_act = new_activation_function("identity"); //layer_type=pool_type;
-	}
+	semi_stochastic_pooling_layer(const char *layer_name, int pool_size) : max_pooling_layer(layer_name, pool_size) {}
+	semi_stochastic_pooling_layer(const char *layer_name, int pool_size, int stride) : max_pooling_layer(layer_name, pool_size, stride){}
 	virtual std::string get_config_string() { std::string str = "semi_stochastic_pool " + int2str(_pool_size) + " " + int2str(_stride) + "\n"; return str; }
 	virtual void accumulate_signal(const base_layer &top, const matrix &w, const int train = 0)
 	{
@@ -425,10 +435,11 @@ class dropout_layer : public base_layer
 	float _dropout_rate;
 	matrix drop_mask;
 public:
-	dropout_layer(const char *layer_name, float dropout_rate, activation_function *p = NULL) : base_layer(layer_name, 1)
+	dropout_layer(const char *layer_name, float dropout_rate) : base_layer(layer_name, 1)
 	{
+		_has_weights = false;
 		_dropout_rate = dropout_rate;
-		p_act = p; p_act = new_activation_function("identity");
+		p_act = NULL;// new_activation_function("identity");
 	}
 	virtual  ~dropout_layer() {}
 	virtual std::string get_config_string() { std::string str = "dropout " + float2str(_dropout_rate)+"\n"; return str; }
@@ -439,22 +450,12 @@ public:
 		base_layer::resize(_w, _h, _c);
 	}
 
-	virtual void activate_nodes() { return; }
 	// no weights 
 	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train = 1) {}
 	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
 	{
-		// wasteful to add weight matrix (1x1x1), but makes other parts of code more OO
-		// bad will happen if try to put more than one pool layer
-		top.forward_linked_layers.push_back(std::make_pair(weight_mat_index, this));
-		int pool_size = 1;
-		int w = (top.node.cols) / 1;
-		int h = (top.node.rows) / 1;
-		resize(w, h, top.node.chans);
-#ifndef NO_TRAINING_CODE
-		backward_linked_layers.push_back(std::make_pair(weight_mat_index, &top));
-#endif
-		return new matrix(1, 1, 1);
+		resize(top.node.cols, top.node.rows, top.node.chans);
+		return base_layer::new_connection(top, weight_mat_index);
 	}
 
 	// for dropout...
@@ -465,36 +466,28 @@ public:
 	{
 		const float *top_node = top.node.x;
 		const int size = top.node.chans*top.node.rows*top.node.cols;
+		memcpy(node.x, top_node, sizeof(float)*size);
 
 		if (train)
 		{
-			for (int k = 0; k < size; k++)
+			drop_mask.fill(1);
+			for (int k = 0; k < size; k+=4) // do 4 at a time
 			{
-				int r = rand() % 100;
-				if (r <= (_dropout_rate*100.f))
-					drop_mask.x[k] = 0.5;
-				else
-					drop_mask.x[k] = 1.0;
-				node.x[k] = top_node[k] * drop_mask.x[k];
-				//		p_map[output_index] = max_i;
-				//output_index++;
+				int r = rand();
+				if ((r % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k] = 0.0;  node.x[k] *= 0.5f; };
+				if (((r >> 1) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 1] = 0.0; node.x[k + 1] *= 0.5f; }
+				if (((r >> 2) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 2] = 0.0;  node.x[k + 2] *= 0.5f; }
+				if (((r >> 3) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 3] = 0.0;  node.x[k + 3] *= 0.5f; }
 			}
-		}
-		else
-		{
-			for (int k = 0; k < size; k++)
-				node.x[k] = top_node[k];
+
 		}
 	}
 #ifndef NO_TRAINING_CODE
 
 	virtual void distribute_delta(base_layer &top, const matrix &w, const int train = 1)
 	{
-		for (int k = 0; k<top.node.chans*top.node.rows*top.node.cols; k++)
-		{
-			if(drop_mask.x[k]==1)
-				top.delta.x[k] += delta.x[k];
-		}
+		delta *= drop_mask;
+		top.delta += delta;
 	}
 #endif
 };
@@ -508,10 +501,10 @@ class maxout_layer : public base_layer
 	int _pool_group;
 	matrix max_map;
 public:
-	maxout_layer(const char *layer_name, int  pool_group, activation_function *p = NULL) : base_layer(layer_name, 1)
+	maxout_layer(const char *layer_name, int  pool_group) : base_layer(layer_name, 1)
 	{
 		_pool_group = pool_group;
-		p_act = p; p_act = new_activation_function("identity");
+		p_act = new_activation_function("identity");
 	}
 	virtual  ~maxout_layer() {}
 	virtual std::string get_config_string() { std::string str = "maxout_map_pool" + int2str(_pool_group) + "\n"; return str; }
@@ -576,7 +569,7 @@ public:
 		{
 			for (int k = 0; k < node.cols*node.rows; k++)
 			{
-				int maxmap= max_map.x[k + c*chan_size];
+				int maxmap= (int) max_map.x[k + c*chan_size];
 //				top.delta.x[k + chan_size*c] += delta.x[k + c*chan_size];
 
 				top.delta.x[k+ chan_size*(2*c+ maxmap)] += delta.x[k+c*chan_size];
@@ -596,7 +589,7 @@ class fractional_max_pooling_layer : public max_pooling_layer
 	int _out_size;
 public:
 	int stride;
-	fractional_max_pooling_layer(const char *layer_name, int out_size, activation_function *p=NULL ) : max_pooling_layer(layer_name,-1,p)
+	fractional_max_pooling_layer(const char *layer_name, int out_size) : max_pooling_layer(layer_name,-1)
 	{
 		stride=-1; _out_size=out_size; _fpool_size =-1.f;
 	}
@@ -843,7 +836,52 @@ public:
 		
 		if(kernel_rows==5)
 		{
-			// orig implementation
+			// ensures 16byte alignment, but maybe not needed if x64
+			matrix filter_ptr(28, 1);
+			matrix img_ptr(28 * node_size*node_size, 1);
+			matrix imgout_ptr(node_size*node_size, 1);
+	
+			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
+			{
+				unwrap_aligned_5x5(img_ptr.x, &top.node.x[k*kstep], jstep);
+
+				for (int map = 0; map < map_cnt; map++) // how many maps  maps= node.chans
+				{
+					memcpy(filter_ptr.x, &w.x[(map + k*maps)*kernel_size], 25 * sizeof(float));
+
+					dot_unwrapped_5x5(img_ptr.x, filter_ptr.x, imgout_ptr.x, outsize);
+
+					float *out = node.x + map_size*map;
+					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr.x[j];
+				}
+			}
+			return;
+			
+		}
+		else if(kernel_rows==3)
+		{
+			matrix filter_ptr(12, 1);
+			matrix img_ptr(12 * node_size*node_size, 1);
+			matrix imgout_ptr(node_size*node_size, 1);
+
+			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
+			{
+				//unwrap_aligned(img_ptr, &top.node.x[k*kstep], jstep, 3);
+				unwrap_aligned_3x3(img_ptr.x, &top.node.x[k*kstep], jstep);
+				for (int map = 0; map < map_cnt; map++) // how many maps  maps= node.chans
+				{
+					memcpy(filter_ptr.x, &w.x[(map + k*maps)*kernel_size], 9 * sizeof(float));
+
+					dot_unwrapped_3x3(img_ptr.x, filter_ptr.x, imgout_ptr.x, outsize);
+
+					float *out = node.x + map_size*map;
+					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr.x[j];
+				}
+			}
+			return;
+		}
+		else if (kernel_rows == 1)
+		{
 #ifndef MOJO_SSE3
 			for (int k = 0; k<top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 			{
@@ -851,92 +889,35 @@ public:
 				_top_node = &top.node.x[k*kstep];
 				for (int map = 0; map<map_cnt; map++) // how many maps  maps= node.chans
 				{
-					_w = &w.x[(map + k*maps)*kernel_size];
-					for (int j = 0; j < node_size; j += stride)//stride) // input h 
-					{
-						for (int i = 0; i < node_size; i += stride)//stride) // intput w
+					const float cw = w.x[(map + k*maps)*kernel_size];
+					for (int j = 0; j<node_size*node_size; j += stride)//stride) // input h 
 						{
-							const float v = unwrap_2d_dot_5x5(_top_node + i + j*jstep, _w, jstep, w_size);
-							node.x[i + (j)*node_size + map_size*map] += v;
-						}
-					}
-				}
-			}
-			return; 
-#else // MOJO_SSE3
-			// ensures 16byte alignment, but maybe not needed if x64
-				float* filter_mem = new float [28 + 4];
-				float *filter_ptr = (float *)(((uintptr_t)filter_mem + 15) & ~(uintptr_t)0x0F);
-				float* img_mem = new float [28 * node_size*node_size+4];
-				float *img_ptr = (float *)(((uintptr_t)img_mem + 15) & ~(uintptr_t)0x0F);
-				float *imgout_mem = new float [node_size*node_size + 4];
-				float *imgout_ptr = (float *)(((uintptr_t)imgout_mem + 15) & ~(uintptr_t)0x0F);
-			//		memset(img_ptr, 0, 28*node_size*node_size * sizeof(float));
-		//				memset(imgout_ptr, 0, node_size*node_size * sizeof(float));
-		//				memset(filter_ptr, 0, 28 * sizeof(float));
-				for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-				{
-					unwrap_aligned_5x5(img_ptr, &top.node.x[k*kstep], jstep);
-
-					for (int map = 0; map < map_cnt; map++) // how many maps  maps= node.chans
-					{
-						memcpy(filter_ptr, &w.x[(map + k*maps)*kernel_size], 25 * sizeof(float));
-						dot_unwrapped_5x5_sse(img_ptr, filter_ptr, imgout_ptr, outsize);
-						float *out = node.x + map_size*map;
-						for (int j = 0; j < outsize; j++) out[j] += imgout_ptr[j];
-					}
-				}
-				delete [] filter_mem;
-				delete [] imgout_mem;
-				delete [] img_mem;
-			return;
-			
-#endif // MOJO_SSE3
-		}
-		else if(kernel_rows==3)
-		{
-#ifndef MOJO_SSE3
-			for(int k=0; k<top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-			{
-				const float *_top_node;
-				_top_node= &top.node.x[k*kstep];
-				for(int map=0; map<map_cnt; map++) // how many maps  maps= node.chans
-				{
-					_w=&w.x[(map+k*maps)*kernel_size];
-					for(int j=0; j<node_size; j+= stride)//stride) // input h 
-						for(int i=0; i<node_size; i+= stride)//stride) // intput w
-						{
-							//float v=0;
-							const float v=unwrap_2d_dot_3x3(_top_node+i+j*jstep,_w,	jstep,w_size);
-							node.x[i+(j)*node_size +map_size*map]+= v;
+							node.x[j + map_size*map] += _top_node[j] * cw;
 						}
 				}
 			}
 #else // MOJO_SSE3
-			void * filter_mem = malloc(12 * sizeof(float) + 16);
-			float *filter_ptr = (float *)(((uintptr_t)filter_mem + 15) & ~(uintptr_t)0x0F);
-			void * img_mem = malloc(12 * node_size*node_size * sizeof(float) + 16);
-			float *img_ptr = (float *)(((uintptr_t)img_mem + 16) & ~(uintptr_t)0x0F);
-			void *imgout_mem = malloc(node_size*node_size * sizeof(float) + 16);
-			float *imgout_ptr = (float *)(((uintptr_t)imgout_mem + 16) & ~(uintptr_t)0x0F);
+			matrix img_ptr(node_size*node_size+4,1);
+			matrix imgout_ptr(node_size*node_size + 4, 1);
 
 			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 			{
-				//unwrap_aligned(img_ptr, &top.node.x[k*kstep], jstep, 3);
-				unwrap_aligned_3x3(img_ptr, &top.node.x[k*kstep], jstep);
+				memcpy(img_ptr.x, &top.node.x[k*kstep], kstep * sizeof(float));
 				for (int map = 0; map < map_cnt; map++) // how many maps  maps= node.chans
 				{
-					memcpy(filter_ptr, &w.x[(map + k*maps)*kernel_size], 9 * sizeof(float));
-
-					dot_unwrapped_3x3_sse(img_ptr, filter_ptr, imgout_ptr, outsize);
+					const float cw = w.x[(map + k*maps)*kernel_size];
+					__m128  b, c1;
+					 b = _mm_set_ps(cw, cw, cw, cw);
+					 for (int j = 0; j < kstep; j += 4)
+					{
+						c1 = _mm_mul_ps(_mm_load_ps(img_ptr.x + j), b);
+						_mm_store_ps(imgout_ptr.x+j,c1);
+					}
 
 					float *out = node.x + map_size*map;
-					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr[j];
+					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr.x[j];
 				}
 			}
-			free(filter_mem);
-			free(img_mem);
-			free(imgout_mem);
 			return;
 #endif //MOJO_SSE3
 		}
@@ -990,119 +971,54 @@ public:
 			
 		if(kernel_cols==5)
 		{					
-#ifndef MOJO_SSE3
-			for(int k=0; k<top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-			{ 
-				_w=& w.x[k*maps*kernel_size];
-				//continue;
-				for(int map=0; map<map_cnt; map++) // how many maps  maps= node.chans
-				{
-					const float *_delta;
-					_delta = &delta_pad.x[map*map_size];
-					//_delta = &delta_pad.x[map*map_size];
-					for(int j=0; j<top_delta_size; j+=1)// was stride) // input h 
-					{
-						for(int i=0; i<top_delta_size; i+=1)//stride) // intput w
-						{
-							const int td_i = i+(j)*jstep + k*kstep;
-							top.delta.x[td_i] += unwrap_2d_dot_rot180_5x5( _delta+i, _w, delta_size,w_size);
-						} // all input chans
-						//output_index++;	
-					_delta+=delta_size;
-					} 
-					_w+=kernel_size;
-				}
-			}
-#else// MOJO_SSE3
-			void * filter_mem = malloc(28 * sizeof(float) + 15);
-			float *filter_ptr = (float *)(((uintptr_t)filter_mem + 15) & ~(uintptr_t)0x0F);
-			void * img_mem = malloc(28 * delta_size*delta_size * sizeof(float) + 15);
-			float *img_ptr = (float *)(((uintptr_t)img_mem + 15) & ~(uintptr_t)0x0F);
-			void *imgout_mem = malloc(delta_size*delta_size * sizeof(float) + 15);
-			float *imgout_ptr = (float *)(((uintptr_t)imgout_mem + 15) & ~(uintptr_t)0x0F);
+			matrix filter_ptr(28, 1);
+			matrix img_ptr(28 * delta_size*delta_size, 1);
+			matrix imgout_ptr(delta_size*delta_size, 1);
 
 			for (int map = 0; map<map_cnt; map++) // how many maps  maps= node.chans
 			{
-				unwrap_aligned(img_ptr, &delta_pad.x[map*map_size], delta_size,5);
+				unwrap_aligned(img_ptr.x, &delta_pad.x[map*map_size], delta_size,5);
 
 				const int outsize = top_delta_size*top_delta_size;
 				for (int k = 0; k<top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_w = &w.x[(k*maps + map)*kernel_size];
 					// flip, flip to make 180 version
-					for (int ii = 0; ii < 25; ii++) filter_ptr[ii] = _w[24 - ii];
+					for (int ii = 0; ii < 25; ii++) filter_ptr.x[ii] = _w[24 - ii];
 
-					dot_unwrapped_5x5_sse(img_ptr, filter_ptr, imgout_ptr, outsize);
+					dot_unwrapped_5x5(img_ptr.x, filter_ptr.x, imgout_ptr.x, outsize);
 
 					float *out = &top.delta.x[k*kstep];
-					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr[j];
+					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr.x[j];
 
 				} // for map
 			}
-			free(imgout_mem);
-			free(img_mem);
-			free(filter_mem);
-
-#endif // #ifndef MOJO_SSE3
 
 		}
 		else if(kernel_cols==3)					
 		{
-#ifndef MOJO_SSE3
-
-			for(int k=0; k<top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-			{
-				_w=& w.x[k*maps*kernel_size];
-				//continue;
-				for(int map=0; map<map_cnt; map++) // how many maps  maps= node.chans
-				{
-					const float *_delta;
-					_delta = &delta_pad.x[map*map_size];
-					//_delta = &delta_pad.x[map*map_size];
-					for(int j=0; j<top_delta_size; j+=1)// was stride) // input h 
-					{
-						for(int i=0; i<top_delta_size; i+=1)//stride) // intput w
-						{
-							const int td_i = i+(j)*jstep + k*kstep;
-							top.delta.x[td_i] += unwrap_2d_dot_rot180_3x3( _delta+i, _w, delta_size,w_size);
-
-						} // all input chans
-						//output_index++;	
-					_delta+=delta_size;
-					} 
-					_w+=kernel_size;
-				}
-			}
-#else// MOJO_SSE3
-			void * filter_mem = malloc(12 * sizeof(float) + 15);
-			float *filter_ptr = (float *)(((uintptr_t)filter_mem + 15) & ~(uintptr_t)0x0F);
-			void * img_mem = malloc(12 * delta_size*delta_size * sizeof(float) + 15);
-			float *img_ptr = (float *)(((uintptr_t)img_mem + 15) & ~(uintptr_t)0x0F);
-			void *imgout_mem = malloc(delta_size*delta_size * sizeof(float) + 15);
-			float *imgout_ptr = (float *)(((uintptr_t)imgout_mem + 15) & ~(uintptr_t)0x0F);
+			matrix filter_ptr(12, 1);
+			matrix img_ptr(12 * delta_size*delta_size, 1);
+			matrix imgout_ptr(delta_size*delta_size, 1);
 
 			for (int map = 0; map<map_cnt; map++) // how many maps  maps= node.chans
 			{
-				unwrap_aligned(img_ptr, &delta_pad.x[map*map_size], delta_size,3);
+				unwrap_aligned(img_ptr.x, &delta_pad.x[map*map_size], delta_size,3);
 
 				const int outsize = top_delta_size*top_delta_size;
 				for (int k = 0; k<top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_w = &w.x[(k*maps + map)*kernel_size];
-					for (int ii = 0; ii < 9; ii++) filter_ptr[ii] = _w[12 - ii];
+					for (int ii = 0; ii < 9; ii++) filter_ptr.x[ii] = _w[12 - ii];
 
-					dot_unwrapped_3x3_sse(img_ptr, filter_ptr, imgout_ptr, outsize);
+					dot_unwrapped_3x3(img_ptr.x, filter_ptr.x, imgout_ptr.x, outsize);
 
 					float *out = &top.delta.x[k*kstep];
-					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr[j];
+					for (int j = 0; j < outsize; j++) out[j] += imgout_ptr.x[j];
 
 				} // for map
 			}
-			free(imgout_mem);
-			free(img_mem);
-			free(filter_mem);
-
-#endif // #ifndef MOJO_SSE3
+	
 		}
 		else
 		{
@@ -1249,18 +1165,111 @@ public:
 
 
 //----------------------------------------------------------------------------------------------------------
-// C O N C A T I N A T I O N   
+// C O N C A T E N A T I O N   
 //
-class concatination_layer : public base_layer
+// puts a set of output maps together and pads to the desired size
+class concatenation_layer : public base_layer
 {
-public:
-	concatination_layer(const char *layer_name, int _w, int _h ) : base_layer(layer_name, _w,_h,1) { }
-	virtual  ~concatination_layer(){}
-	virtual void distribute_delta(base_layer &top, const matrix &w, const int train =1) {}
-	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train =1) {}
-	virtual void accumulate_signal(const base_layer &top_node, const matrix &w, const int train =0) {}
+	std::map<const base_layer*, int> layer_to_channel;  // name-to-index of layer for layer management
 
-	virtual std::string get_config_string() {std::string str="concatination_layer "+int2str(node.cols)+" "+int2str(node.cols)+" "+int2str(node.cols)+"\n"; return str;}
+	int _maps;
+public:
+	concatenation_layer(const char *layer_name, int _w, int _h) : base_layer(layer_name, _w, _h)
+	{
+		_maps = 0;
+		_has_weights = false;
+		p_act = NULL;// new_activation_function("identity");
+	}
+	virtual  ~concatenation_layer() {}
+	virtual std::string get_config_string() { std::string str = "concatenate " + int2str(node.cols) +" "+int2str(node.rows) +"\n"; return str; }
+	// this connection work won't work with multiple top layers (yet)
+	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
+	{
+		//if (layer_to_channel[&top]) bail("layer already addded to pad layer"); //already exists
+		layer_to_channel[&top] = _maps;
+		_maps += top.node.chans;
+		resize(node.cols, node.rows, _maps);
+		return base_layer::new_connection(top, weight_mat_index);
+	}
+
+	// no weights 
+	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train = 1) {}
+
+	virtual void accumulate_signal(const base_layer &top, const matrix &w, const int train = 0)
+	{
+		const float *top_node = top.node.x;
+		const int size = node.rows*node.cols;
+	
+		// for now just handle symmetric padding (same on both sides)
+		int opadx = node.cols - top.node.cols;
+		int opady = node.rows - top.node.rows;
+		int padx, pady, padx_ex=0, pady_ex=0;
+
+		if (opadx > 0) padx = opadx/2;
+		if (opady > 0) pady = opady/2;
+
+		if (opadx % 2 != 0) {
+			padx_ex = 1; padx += 1;
+		}
+		if (opady % 2 != 0) {
+			pady_ex = 1; pady += 1;
+		}
+
+		int map_offset = layer_to_channel[&top];
+
+		if (padx > 0 || pady > 0)
+		{
+			matrix m = top.node.pad(padx, pady, 0);
+			if (padx_ex || pady_ex)
+			{
+				m = m.crop(padx_ex, pady_ex, node.cols, node.rows);
+			}
+			memcpy(node.x + size*map_offset, m.x, sizeof(float)*m.size());
+		}
+		else if((node.cols == top.node.cols) && (node.rows == top.node.rows))
+		{
+			memcpy(node.x + size*map_offset, top.node.x, sizeof(float)*top.node.size());
+		}
+		else
+		{
+			// crop
+			int dx = abs(padx) / 2;
+			int dy = abs(pady) / 2;
+			matrix m = top.node.crop(dx, dy, node.cols, node.rows);
+			memcpy(node.x + size*map_offset, m.x, sizeof(float)*m.size());
+		}
+	}
+#ifndef NO_TRAINING_CODE
+
+	virtual void distribute_delta(base_layer &top, const matrix &w, const int train = 1)
+	{
+		int map_offset = layer_to_channel[&top];
+		int padx = node.cols - top.node.cols;
+		int pady = node.rows - top.node.rows;
+		if (padx > 0) padx /= 2;
+		if (pady > 0) pady /= 2;
+
+		if (padx > 0 || pady > 0)
+		{
+			matrix m = delta.get_chans(map_offset, top.delta.chans);
+			top.delta += m.crop(padx, pady, top.delta.cols, top.delta.rows);
+		}
+		else if ((node.cols == top.node.cols) && (node.rows == top.node.rows))
+		{
+			top.delta += delta.get_chans(map_offset, top.delta.chans);
+		}
+		else
+		{
+			matrix m = delta.get_chans(map_offset, top.delta.chans);
+			// pad
+			int dx = abs(padx) / 2;
+			int dy = abs(pady) / 2;
+			top.delta += m.pad(dx, dy);
+
+		}
+
+	}
+#endif
 };
 
 
@@ -1326,12 +1335,11 @@ base_layer *new_layer(const char *layer_name, const char *config)
 		iss >> fc;
 		return new dropout_layer(layer_name, fc);
 	}
-	else if(str.compare("concatination")==0)
+	else if((str.compare("resize")==0) || (str.compare("concatenate") == 0))
 	{
-		iss>>w;iss>>h;iss>>c;  
-		return new concatination_layer(layer_name, w,h);
+		iss>>w;iss>>h;  
+		return new concatenation_layer(layer_name, w,h);
 	}
-	
 
 	return NULL;
 }

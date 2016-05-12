@@ -336,7 +336,7 @@ mojo::matrix draw_cnn_weights(mojo::network &cnn)
 
 			for (auto i = 0; i < cnn.W[connection_index]->chans; i++)
 			{
-				cv::Mat im = matrix2cv(cnn.W[connection_index]->get_chan(i), true);
+				cv::Mat im = matrix2cv(cnn.W[connection_index]->get_chans(i), true);
 				cv::resize(im, im, cv::Size(0, 0), 2., 2., 0);
 				im_layers.push_back(im);
 			}

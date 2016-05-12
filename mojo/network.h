@@ -55,7 +55,6 @@
 
 namespace mojo {
 
-#define bail(txt) {std::cerr << txt; throw;}
 
 // sleep needed for threading
 #ifdef _WIN32
@@ -346,39 +345,44 @@ public:
 		// after all connections, run through and do weights with correct fan count
 
 		// initialize weights - ToDo: separate and allow users to configure(?)
-		if(strcmp(l_bottom->p_act->name,"tanh")==0)
+		if (l_bottom->has_weights())
 		{
-			// xavier : for tanh
-			float weight_base = (float)(std::sqrt(6./( (double)fan_in+(double)fan_out)));
-	//		float weight_base = (float)(std::sqrt(.25/( (double)fan_in)));
-			w->fill_random_uniform(weight_base);
+			if (strcmp(l_bottom->p_act->name, "tanh") == 0)
+			{
+				// xavier : for tanh
+				float weight_base = (float)(std::sqrt(6. / ((double)fan_in + (double)fan_out)));
+				//		float weight_base = (float)(std::sqrt(.25/( (double)fan_in)));
+				w->fill_random_uniform(weight_base);
+			}
+			else if (strcmp(l_bottom->p_act->name, "sigmoid") == 0)
+			{
+				// xavier : for sigmoid
+				float weight_base = 4.f*(float)(std::sqrt(6. / ((double)fan_in + (double)fan_out)));
+				w->fill_random_uniform(weight_base);
+			}
+			else if ((strcmp(l_bottom->p_act->name, "lrelu") == 0) || (strcmp(l_bottom->p_act->name, "relu") == 0)
+				|| (strcmp(l_bottom->p_act->name, "vlrelu") == 0) || (strcmp(l_bottom->p_act->name, "elu") == 0))
+			{
+				// he : for relu
+				float weight_base = (float)(std::sqrt(2. / (double)fan_in));
+				w->fill_random_normal(weight_base);
+			}
+			else
+			{
+				// lecun : orig
+				float weight_base = (float)(std::sqrt(1. / (double)fan_in));
+				w->fill_random_uniform(weight_base);
+			}
 		}
-		else if(strcmp(l_bottom->p_act->name,"sigmoid")==0)
-		{
-			// xavier : for sigmoid
-			float weight_base = 4.f*(float)(std::sqrt(6./( (double)fan_in+(double)fan_out)));
-			w->fill_random_uniform(weight_base);
-		}
-		else if((strcmp(l_bottom->p_act->name,"lrelu")==0) || (strcmp(l_bottom->p_act->name,"relu")==0)
-			|| (strcmp(l_bottom->p_act->name,"vlrelu")==0) || (strcmp(l_bottom->p_act->name,"elu")==0))
-		{
-			// he : for relu
-			float weight_base = (float)(std::sqrt(2./(double)fan_in));
-			w->fill_random_normal(weight_base);
-		}
-		else
-		{
-			// lecun : orig
-			float weight_base = (float)(std::sqrt(1./(double)fan_in));
-			w->fill_random_uniform(weight_base);
-		}
+		else w->fill(0);
 	}
 
 	// automatically connect all layers in the order they were provided 
 	// easy way to go, but can't deal with branch/highway/resnet/inception types of architectures
 	void connect_all()
 	{	
-		for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size()-1; j++) connect(layer_sets[MAIN_LAYER_SET][j]->name.c_str(), layer_sets[MAIN_LAYER_SET][j+1]->name.c_str());
+		for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size()-1; j++) 
+			connect(layer_sets[MAIN_LAYER_SET][j]->name.c_str(), layer_sets[MAIN_LAYER_SET][j+1]->name.c_str());
 	}
 
 	// get the list of layers used (but not connection information)

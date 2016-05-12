@@ -75,6 +75,25 @@ inline void unwrap_aligned_5x5(float *aligned_out, const float *in, const int in
 	}
 }
 
+inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in_size)
+{
+	const int node_size = in_size - 3 + 1;
+	int c1 = 0;
+	for (int j = 0; j < node_size; j += 1)//stride) // intput w
+	{
+		for (int i = 0; i < node_size; i += 1)//stride) // intput w
+		{
+			const float *tn = in + j*in_size + i;
+			int c2 = 0;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
+			c1 += 3;
+		}
+	}
+}
+
+#ifndef MOJO_SSE3
 inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
 	const float *_filt = filter_ptr;
@@ -97,25 +116,23 @@ inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float 
 		out[j] = c0;
 	}
 }
-
-
-inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in_size)
+inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
-	const int node_size = in_size - 3 + 1;
-	int c1 = 0;
-	for (int j = 0; j < node_size; j += 1)//stride) // intput w
+	const float *_filt = filter_ptr;
+	for (int j = 0; j < outsize; j += 1)//stride) // intput w
 	{
-		for (int i = 0; i < node_size; i += 1)//stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			c1 += 3;
-		}
+		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
+		_img += 4; _filt += 4;
+		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
+		_img += 4; _filt += 4;
+		c0 += _img[0] * _filt[0];
+		_img += 4; _filt = filter_ptr;
+		out[j] = c0;
 	}
 }
+#endif 
+
+
 
 inline void unwrap_aligned(float *aligned_out, const float *in, const int in_size, const int kernel_size)
 {
@@ -137,8 +154,9 @@ inline void unwrap_aligned(float *aligned_out, const float *in, const int in_siz
 		}
 	}
 }
+
 #ifdef MOJO_SSE3
-inline void dot_unwrapped_5x5_sse(const float *_img, const float *filter_ptr, float *out, const int outsize)
+inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
 	_mm_prefetch((const char *)(out), _MM_HINT_T0);
 	for (int j = 0; j < outsize; j += 1)//stride) // intput w
@@ -184,7 +202,7 @@ inline void dot_unwrapped_5x5_sse(const float *_img, const float *filter_ptr, fl
 	}
 }
 
-inline void dot_unwrapped_3x3_sse(const float *_img, const float *filter_ptr, float *out, const int outsize)
+inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
 	_mm_prefetch((const char *)(out), _MM_HINT_T0);
 	for (int j = 0; j < outsize; j += 1)//stride) // intput w
@@ -338,6 +356,10 @@ class matrix
 {
 	int _size;
 	int _capacity;
+	float *_x_mem;
+	void delete_x() { delete[] _x_mem; x = NULL;  _x_mem = NULL; }
+	// 4 extra for alignment and 4 for 3 padding for SSE
+	float *new_x(const int size) { _x_mem = new float[size + 4+3];  x = (float *)(((uintptr_t)_x_mem + 16) & ~(uintptr_t)0x0F); return x; }
 public:
 	std::string _name;
 	int cols, rows, chans;
@@ -347,18 +369,18 @@ public:
 
 	matrix( int _w, int _h, int _c=1, float *data=NULL): cols(_w), rows(_h), chans(_c) 
 	{
-		_size=cols*rows*chans; _capacity=_size; x = new float[_size]; 
+		_size=cols*rows*chans; _capacity=_size; x = new_x(_size); 
 		if(data!=NULL) memcpy(x,data,_size*sizeof(float));
 	}
 
 	// copy constructor - deep copy
-	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new float[_size]; memcpy(x,m.x,sizeof(float)*_size); } // { v=m.v; x=(float*)v.data();}
+	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); } // { v=m.v; x=(float*)v.data();}
 	// copy and pad constructor
 	matrix( const matrix &m, int pad_cols, int pad_rows) : cols(m.cols+2*pad_cols), rows(m.rows+2*pad_rows), chans(m.chans)
 	{
 		_size = cols*rows*chans;
 		_capacity = _size;
-		x = new float[_size]; 
+		x = new_x(_size); 
 		fill(0);
 		for(int c=0; c<m.chans; c++)
 		for(int j=0; j<m.rows; j++)
@@ -368,15 +390,15 @@ public:
 		 
 	} // { v=m.v; x=(float*)v.data();}
 
-	~matrix() { if(x) delete [] x; x=NULL;}
+	~matrix() { if(x) delete_x();}
 	
-	matrix get_chan(int channel) const
+	matrix get_chans(int start_channel, int num_chans=1) const
 	{
-		return matrix(cols,rows,1,&x[channel*cols*rows]);	
+		return matrix(cols,rows,num_chans,&x[start_channel*cols*rows]);
 	}
 
 	// if edge_pad==0, then the padded area is just 0. Otherwise it fills with edge pixel colors
-	matrix pad(int dx, int dy, int edge_pad=0)
+	matrix pad(int dx, int dy, int edge_pad=0) const
 	{
 		matrix v(cols+2*dx,rows+2*dy,chans);
 		v.fill(0);
@@ -412,7 +434,7 @@ public:
 		return v;
 	}
 
-	matrix crop(int dx, int dy, int w, int h)
+	matrix crop(int dx, int dy, int w, int h) const
 	{
 		matrix v(w,h,chans);
 
@@ -524,7 +546,7 @@ public:
 	
 	void resize(int _w, int _h, int _c) { 
 		int s = _w*_h*_c;
-		if(s>_capacity) { if(_capacity>0) delete [] x; _size = s; _capacity=_size; x = new float[_size];}
+		if(s>_capacity) { if(_capacity>0) delete_x(); _size = s; _capacity=_size; x = new_x(_size);}
 		cols=_w; rows=_h; chans=_c; _size=s;
 	} 
 	
@@ -546,21 +568,44 @@ public:
 		for (int i = 0; i < _size; i++) x[i] -= m2.x[i];
 		return *this;
 	}
+#ifndef MOJO_SSE3
 	// *= float
 	inline matrix operator *=(const float v) {
 		for (int i = 0; i < _size; i++) x[i] = x[i] * v;
 		return *this;
 	}
-	// *= float
+#else
+	inline matrix operator *=(const float v) {
+		__m128  b;
+		b = _mm_set_ps(v, v, v, v);
+		for (int j = 0; j < _size; j += 4)
+			_mm_store_ps(x + j, _mm_mul_ps(_mm_load_ps(x + j), b));
+		return *this;
+	}
+#endif
+	// *= matrix
 	inline matrix operator *=(const matrix &v) {
 		for (int i = 0; i < _size; i++) x[i] = x[i] * v.x[i];
 		return *this;
 	}
+	inline matrix operator *(const matrix &v) {
+		matrix T(cols, rows, chans);
+		for (int i = 0; i < _size; i++) T.x[i] = x[i] * v.x[i];
+		return T;
+	}
+
 	// * float
-	inline matrix operator *(const float v){
-		matrix T(cols,rows,1);
-	  for(int i = 0; i < _size; i++) T.x[i] = x[i] * v;
-	  return T;
+	inline matrix operator *(const float v) {
+		matrix T(cols, rows, chans);
+		for (int i = 0; i < _size; i++) T.x[i] = x[i] * v;
+		return T;
+	}
+
+	// + float
+	inline matrix operator +(const float v) {
+		matrix T(cols, rows, chans);
+		for (int i = 0; i < _size; i++) T.x[i] = x[i] + v;
+		return T;
 	}
 
 	// +
