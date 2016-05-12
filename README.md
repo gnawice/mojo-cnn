@@ -8,14 +8,14 @@ Latest change status is on the [mojo cnn wiki](https://github.com/gnawice/mojo-c
 
 Features:
 + Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, (Fractional Max Pool, Maxout-like pooling, Concatenation all in progress). [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
-+ Activation Functions: Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, (Softmax in progress)
++ Activation Functions: Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax
 + Optimization: Stochastic Gradient Descent, RMSProp, AdaGrad, Adam
 + Loss Functions: Mean Squared Error, Cross Entropy
 + Threading: optional and externally controlled at the application level using OpenMP
-+ Architecture: Branching allowed
++ Architecture: Branching allowed, multiple inputs, concatenation of layers
 + Solver: Smart training optimizes parameters, speeds up training, and provides exit criteria.
-+ Image Support: optional OpenCV utilities (in progress)
-+ Portable: tested with MS Developer Studio 2010, 2015, and Cygwin g++ 5.3.0. 
++ Image Support: Optional OpenCV utilities (in progress)
++ Portable: Tested with MS Developer Studio 2010, 2015, and Cygwin g++ 5.3.0. 
 + Logging: html training report
 
 API Examples:
