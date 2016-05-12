@@ -159,16 +159,20 @@ public:
 		top += "\nvar data = new google.visualization.DataTable();data.addColumn('number', 'Epoch');data.addColumn('number', 'Training Estimate');data.addColumn('number', 'Validation Testing');data.addRows([";
 		std::string data = "";
 		float min = 100;
+		float max_10 = 0;
 		for (int i = 0; i < log.size(); i++)
 		{
 			if ((100.f - log[i].train_accurracy_est) < min) min = (100.f - log[i].train_accurracy_est);
 			if ((100.f - log[i].test_accurracy) < min) min = (100.f - log[i].test_accurracy);
+			if ((100.f - log[i].train_accurracy_est) > max_10) max_10 = (100.f - log[i].train_accurracy_est);
+			if ((100.f - log[i].test_accurracy) > max_10) max_10 = (100.f - log[i].test_accurracy);
+
 			data += "[" + int2str(i) + "," + float2str(100.f - log[i].train_accurracy_est) + "," + float2str(100.f - log[i].test_accurracy) + "],";
 		}
 		float min_10 = min;
 //		while (min_10 > min) min_10 /= 10.f;
 
-		std::string mid = "]);var options = { 'height':400, hAxis: {title: 'Epoch', logScale: true},vAxis : {title: 'Error (%)', logScale: true, viewWindow: {min:"+float2str(min_10)+",max: 100},ticks: [0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2, 5, 10, 20, 50, 100] },colors : ['#313055','#F52B00'] };var chart = new google.visualization.LineChart(document.getElementById('chart_div')); chart.draw(data, options);}//]]>\n </script>";
+		std::string mid = "]);var options = { 'height':400, hAxis: {title: 'Epoch', logScale: true},vAxis : {title: 'Error (%)', logScale: true, viewWindow: {min:"+float2str(min_10)+",max:"+ float2str(max_10)+"},ticks: [0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2, 5, 10, 20, 50, 100] },colors : ['#313055','#F52B00'] };var chart = new google.visualization.LineChart(document.getElementById('chart_div')); chart.draw(data, options);}//]]>\n </script>";
 
 		std::string msg = "<table style='width:100 %' align='center'>";
 		int N = (int)log.size();
