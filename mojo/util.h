@@ -294,10 +294,11 @@ mojo::matrix bgr2ycrcb(mojo::matrix &m)
 	return m;
 }
 
-void show(mojo::matrix &m, float zoom = 1.0f, const char *win_name = "")
+void show(mojo::matrix &m, float zoom = 1.0f, const char *win_name = "", int wait_ms=1)
 {
+	if (m.cols <= 0 || m.rows <= 0 || m.chans <= 0) return;
 	cv::Mat cv_m = matrix2cv(m);
-
+	
 	double min_, max_;
 	cv_m = cv_m.reshape(1);
 	cv::minMaxIdx(cv_m, &min_, &max_);
@@ -310,7 +311,7 @@ void show(mojo::matrix &m, float zoom = 1.0f, const char *win_name = "")
 
 	if (zoom != 1.f) cv::resize(cv_m, cv_m, cv::Size(0, 0), zoom, zoom,0);
 	cv::imshow(win_name, cv_m);
-	cv::waitKey(1);
+	cv::waitKey(wait_ms);
 }
 
 // null name hides all windows	
@@ -320,24 +321,75 @@ void hide(const char *win_name = "")
 	else cv::destroyWindow(win_name);
 }
 
-mojo::matrix draw_cnn_weights(mojo::network &cnn)
+enum mojo_palette{ gray=0, hot=1, tensorglow=2, voodoo=3, saltnpepa=4};
+
+
+cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo_palette::gray)
+{
+
+	if (im.cols <= 0 || im.rows <= 0) return im;
+
+	cv::Mat RGB[3];
+	RGB[0] = im.clone(); // blue
+	RGB[1] = im.clone();
+	RGB[2] = im.clone();
+
+	for (int i = 0; i < im.rows*im.cols; i++)
+	{
+		unsigned char c = (unsigned char)im.data[i];
+		// tensor flow colors (red black blue)
+		if (color_palette == mojo_palette::tensorglow)
+		{
+			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
+			else if (c < 128) { RGB[2].data[i] = 0; RGB[1].data[i] = 0; RGB[0].data[i] = 2*(127 - c); }
+			else { RGB[2].data[i] = 2* (c - 128); RGB[1].data[i] = 0; RGB[0].data[i] = 0; }
+		}
+		else if (color_palette == mojo_palette::hot)
+		{
+			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
+			else if (c < 128) { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] = c * 2; }
+			else { RGB[0].data[i] = 0; RGB[1].data[i] = (c - 128) * 2; RGB[2].data[i] = 255; }
+		}
+		else if (color_palette == mojo_palette::saltnpepa)
+		{
+			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
+			else if (c&1) { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] = 0; }
+			else { RGB[0].data[i] = 255; RGB[1].data[i] = 255; RGB[2].data[i] = 255; }
+		}
+		else if (color_palette == mojo_palette::voodoo)
+		{
+			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
+			else if (c < 128) { RGB[2].data[i] = (127-c); RGB[1].data[i] = 0; RGB[0].data[i] = 2 * (127 - c); }
+			else { RGB[2].data[i] = 2 * (c - 128); RGB[1].data[i] = c; RGB[0].data[i] = 0; }
+		}
+	}
+
+	cv::Mat out;
+	cv::merge(RGB, 3, out);
+	return out;
+	//cv::applyColorMap(im, im, cv::COLORMAP_WINTER);// COLORMAP_HOT); // cv::COLORMAP_JET); COLORMAP_RAINBOW
+}
+
+mojo::matrix draw_cnn_weights(mojo::network &cnn, mojo::mojo_palette color_palette=mojo_palette::gray, int layer_index=0)
 {
 	int w = (int)cnn.W.size();
 	cv::Mat im;
 
+
 	std::vector <cv::Mat> im_layers;
 
 	int layers = (int)cnn.layer_sets[0].size();
-	for (int k = 0; k < layers; k++)
+	//for (int k = 0; k < layers; k++)
+	int k=layer_index;
 	{
 		base_layer *layer = cnn.layer_sets[0][k];
-		if (dynamic_cast<convolution_layer*> (layer) != NULL)  continue;
+	//	if (dynamic_cast<convolution_layer*> (layer) == NULL)  return mojo::matrix();// continue;
 
 		__for__(auto &link __in__ layer->forward_linked_layers)
 		{
 			int connection_index = link.first;
 			base_layer *p_bottom = link.second;
-
+			if (!p_bottom->has_weights()) continue;
 			for (auto i = 0; i < cnn.W[connection_index]->chans; i++)
 			{
 				cv::Mat im = matrix2cv(cnn.W[connection_index]->get_chans(i), true);
@@ -346,22 +398,25 @@ mojo::matrix draw_cnn_weights(mojo::network &cnn)
 			}
 			// draw these nicely
 			int s = im_layers[0].cols;
-			cv::Mat tmp(s+2, p_bottom->node.chans*(s+1)+1, CV_8UC1);// = im.clone();
+			cv::Mat tmp(layer->node.chans*(s + 1) + 1, p_bottom->node.chans*(s+1)+1, CV_8UC1);// = im.clone();
 			tmp = 255;
-			for (int i = 0; i < im_layers.size(); i++)
+			for (int j = 0; j < layer->node.chans; j++)
 			{
-				// make colors go 0 to 254
-				double min, max;
-				cv::minMaxIdx(im_layers[i], &min, &max);
-				im_layers[i] -= min;
-				im_layers[i] /= (max - min)/254;
+				for (int i = 0; i < p_bottom->node.chans; i++)
+				{
+					// make colors go 0 to 254
+					double min, max;
+					int index = i+j*p_bottom->node.chans;
+					cv::minMaxIdx(im_layers[index], &min, &max);
+					im_layers[index] -= min;
+					im_layers[index] /= (max - min) / 254;
 
-				im_layers[i].convertTo(im_layers[i], CV_8UC1);
-				im_layers[i].copyTo(tmp(cv::Rect(i*s + 1 + i, 1, s, s)));
+					im_layers[index].convertTo(im_layers[index], CV_8UC1);
+					im_layers[index].copyTo(tmp(cv::Rect(i*s + 1 + i, j*s+  1+j, s, s)));
+				}
 			}
 			im = tmp;
 		}
-		break;
 	}
 	/*
 	int imgs = (int)im_layers.size();
@@ -397,36 +452,48 @@ mojo::matrix draw_cnn_weights(mojo::network &cnn)
 
 	}
 	*/
-	if (im.cols>0 && im.rows>0)
-	{
-		cv::Mat RGB[3];
-		RGB[0] = im.clone(); // blue
-		RGB[1] = im.clone();
-		RGB[2] = im.clone();
+	return cv2matrix(colorize(im, color_palette));
+}
 
-		// tensor flow colors (red black blue)
-		for (int i = 0; i < im.rows*im.cols; i++)
-		{
-			unsigned char c = (unsigned char)im.data[i];
-			if(c==255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
-			else if (c < 128) { RGB[2].data[i] = 0; RGB[1].data[i] = 0; RGB[0].data[i] = 2*(128 - c); }
-			else { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] = 2*(c-128); }
-		}
-		/*/
-		// heat
-/*		for (int i = 0; i < im.rows*im.cols; i++)
-		{
-			unsigned char c = (unsigned char)im.data[i];
-			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
-			else if (c < 128) { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] =c  * 2;}
-			else { RGB[0].data[i] = 0; RGB[1].data[i] = (c-128)*2; RGB[2].data[i] = 255; }
-		}
-		
-	//	*/
-		cv::merge(RGB, 3, im);
-		//cv::applyColorMap(im, im, cv::COLORMAP_WINTER);// COLORMAP_HOT); // cv::COLORMAP_JET); COLORMAP_RAINBOW
+mojo::matrix draw_cnn_state(mojo::network &cnn, int layer_index, mojo::mojo_palette color_palette = mojo_palette::gray)
+{
+	cv::Mat im;
+	int layers = (int)cnn.layer_sets[0].size();
+	if (layer_index < 0 || layer_index >= layers) return mojo::matrix();
+
+	std::vector <cv::Mat> im_layers;
+	base_layer *layer = cnn.layer_sets[0][layer_index];
+
+	for (int i = 0; i < layer->node.chans; i++)
+	{
+		cv::Mat im = matrix2cv(layer->node.get_chans(i), true);
+		cv::resize(im, im, cv::Size(0, 0), 2., 2., 0);
+		im_layers.push_back(im);
 	}
-	return cv2matrix(im);
+	// draw these nicely
+	int s = im_layers[0].cols;
+	cv::Mat tmp(s + 2, im_layers.size()*(1+s) + 1, CV_8UC1);// = im.clone();
+	tmp = 255;
+	for (int i = 0; i < im_layers.size(); i++)
+	{
+		// make colors go 0 to 254
+		double min, max;
+		cv::minMaxIdx(im_layers[i], &min, &max);
+		im_layers[i] -= min;
+		im_layers[i] /= (max - min) / 254;
+
+		im_layers[i].convertTo(im_layers[i], CV_8UC1);
+		im_layers[i].copyTo(tmp(cv::Rect(i*s + 1 + i, 1, s, s)));
+	}
+	im = tmp;
+
+	return cv2matrix(colorize(im, color_palette));
+}
+
+mojo::matrix draw_cnn_state(mojo::network &cnn, std::string layer_name, mojo::mojo_palette color_palette = mojo_palette::gray)
+{
+	int layer_index = cnn.layer_map[layer_name];
+	return draw_cnn_state(cnn, layer_index, color_palette);
 }
 
 #endif // MOJO_CV#

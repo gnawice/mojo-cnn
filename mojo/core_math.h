@@ -92,7 +92,6 @@ inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in
 		}
 	}
 }
-
 #ifndef MOJO_SSE3
 inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
@@ -116,9 +115,13 @@ inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float 
 		out[j] = c0;
 	}
 }
+
+
 inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
 	const float *_filt = filter_ptr;
+
+
 	for (int j = 0; j < outsize; j += 1)//stride) // intput w
 	{
 		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
@@ -128,11 +131,10 @@ inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float 
 		c0 += _img[0] * _filt[0];
 		_img += 4; _filt = filter_ptr;
 		out[j] = c0;
+
 	}
 }
 #endif 
-
-
 
 inline void unwrap_aligned(float *aligned_out, const float *in, const int in_size, const int kernel_size)
 {
@@ -154,7 +156,6 @@ inline void unwrap_aligned(float *aligned_out, const float *in, const int in_siz
 		}
 	}
 }
-
 #ifdef MOJO_SSE3
 inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
@@ -574,6 +575,8 @@ public:
 		for (int i = 0; i < _size; i++) x[i] = x[i] * v;
 		return *this;
 	}
+
+
 #else
 	inline matrix operator *=(const float v) {
 		__m128  b;
@@ -593,7 +596,6 @@ public:
 		for (int i = 0; i < _size; i++) T.x[i] = x[i] * v.x[i];
 		return T;
 	}
-
 	// * float
 	inline matrix operator *(const float v) {
 		matrix T(cols, rows, chans);

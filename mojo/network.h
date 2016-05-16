@@ -55,7 +55,6 @@
 
 namespace mojo {
 
-
 // sleep needed for threading
 #ifdef _WIN32
 #include <windows.h>
@@ -433,6 +432,7 @@ public:
 		// first layer assumed input. copy input to it 
 		const float *in_ptr = in;
 		//base_layer * layer = layer_sets[_thread_number][0];
+
 		//memcpy(layer->node.x, in, sizeof(float)*layer->node.size());
 		
 		__for__(auto layer __in__ inputs)
@@ -442,7 +442,6 @@ public:
 		}
 		//for (int i = 0; i < layer->node.size(); i++)
 		//	layer_sets[_thread_number][0]->node.x[i] = in[i];
-		
 		// for all layers
 		__for__(auto layer __in__ layer_sets[_thread_number])
 		{
@@ -786,7 +785,7 @@ public:
 		epoch_count++;
 
 		// estimate accuracy of validation run 
-		estimated_accuracy = 0.995f*100.f*train_correct / train_samples;
+		estimated_accuracy = 100.f*train_correct / train_samples;
 
 		if (train_correct > best_estimated_accuracy)
 		{
@@ -830,6 +829,8 @@ public:
 
 					if (_running_E[index] > 0) _skip_energy_level = _running_E[index];
 
+					_running_sum_E = 0;
+
 					_running_E.clear();
 				}
 			}
@@ -843,7 +844,6 @@ public:
 
 
 	}
-
 	// finish back propogation through the hidden layers
 	void backward_hidden(const int my_batch_index, const int thread_number)
 	{
@@ -907,12 +907,6 @@ public:
 		unlock_batch();
 	}
 
-	bool train_target(float *in, float *target, int _thread_number = -1)
-	{
-
-		return true;
-	}
-
 	// after starting epoch, call this to train against a class label
 	// label_index must be 0 to out_size()-1
 	// for thread safety, you must pass in the thread_index if calling from different threads
@@ -958,10 +952,9 @@ public:
 			target = std::vector<float>(layer_node_size, 0);
 		else
 			target = std::vector<float>(layer_node_size, -1);
-
 		if(label_index>=0 && label_index<layer_node_size) target[label_index] = 1;
 
-
+		const float grad_fudge = 1.0f;
 		// because of numerator/demoninator cancellations which prevent a divide by zero issue, 
 		// we need to handle some things special on output layer
 		float cost_activation_type = 0;
@@ -975,15 +968,17 @@ public:
 			(std::string("cross_entropy").compare(_cost_function->name) == 0)) 
 			cost_activation_type = 4;
 	
-
 		for (int j = 0; j < layer_node_size; j++)
 		{
-			 // here the delta is just x-t if cost_type > 0
-			if(cost_activation_type>0) layer->delta.x[j] = cost_activation_type*(layer->node.x[j]- target[j]);
-			else  layer->delta.x[j] = _cost_function->d_cost(layer->node.x[j], target[j])*layer->df(layer->node.x, j, layer_node_size);
+			if(cost_activation_type>0)
+				layer->delta.x[j] = grad_fudge*cost_activation_type*(layer->node.x[j]- target[j]);
+			else
+				layer->delta.x[j] = grad_fudge*_cost_function->d_cost(layer->node.x[j], target[j])*layer->df(layer->node.x, j, layer_node_size);
+
 			// pick best response
 			if (layer->node.x[max_j_out] < layer->node.x[j]) max_j_out = j;
 			// for better E maybe just look at 2 highest scores so zeros don't dominate 
+
 			E += mse::cost(layer->node.x[j], target[j]);
 		}
 	
@@ -1003,9 +998,7 @@ public:
 			unlock_batch();
 			return false;  // return without doing training
 		}
-
 		backward_hidden(my_batch_index, thread_number);
-
 		return true;
 	}
 	

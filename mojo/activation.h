@@ -108,7 +108,7 @@ namespace tan_h
 	inline float f(float *in, int i, int size, float bias) // this is activation f(x)
 	{
 		// in[i] += bias;
-        const float ep = std::exp(in[i]+bias);
+        const float ep = std::exp((in[i]+bias));
         const float em = std::exp(-(in[i] + bias));
         return (ep - em) / (ep + em);
     }
@@ -122,7 +122,7 @@ namespace tan_h
 		return tanh_lut[index];
 	}
 #endif // MOJO_LUTS	
-	inline float  df(float *in, int i, int size) { return 1.f - in[i]*in[i]; }  // this is df(x), but we pass in the activated value f(x) and not x 
+	inline float  df(float *in, int i, int size) { return (1.f - in[i]*in[i]); }  // this is df(x), but we pass in the activated value f(x) and not x 
 	const char name[]="tanh";
 }
 
