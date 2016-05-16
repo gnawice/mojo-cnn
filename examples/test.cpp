@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <tchar.h>
 
+//#define MOJO_CV3
 #include <mojo.h>
 
 //*
@@ -71,6 +72,10 @@ void test(mojo::network &cnn, const std::vector<std::vector<float>> &test_images
 		const int prediction=cnn.predict_class(test_images[k].data());
 		if(prediction ==test_labels[k]) correct_predictions++;
 		if(k%1000==0) progress.draw_progress(k);
+//#ifdef MOJO_CV3
+//		mojo::show(mojo::draw_cnn_state(cnn,"C1",mojo::voodoo), 4, "State");
+//#endif
+
 	}
 	float dt = progress.elapsed_seconds();
 	std::cout << "  test time: " << dt << " seconds                                          "<< std::endl;
@@ -96,6 +101,10 @@ int main()
 	if(!cnn.read(model_file)) {std::cerr << "error: could not read model.\n"; return 1;}
 	std::cout << "Mojo CNN Configuration:" << std::endl;
 	std::cout << cnn.get_configuration() << std::endl;
+
+//#ifdef MOJO_CV3
+//	mojo::show(mojo::draw_cnn_weights(cnn, mojo::mojo_palette::gray,1), 7, "Weights");
+//#endif
 
 	// == run the test
 	std::cout << "Testing " << data_name() << ":" << std::endl;
