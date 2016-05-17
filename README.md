@@ -2,7 +2,7 @@
 
 Mojo is an efficient C++ CNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. Built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
 
-The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like. Just make a loop and pass in training samples until mojo cnn says stop. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute. 
+The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute. 
 
 Latest change status is on the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki). 
 
@@ -70,7 +70,11 @@ while(1)
 
 ```
 
-Example training log from sample application:
-![](https://github.com/DozerTheCat/ucnn/wiki/images/log_example.jpg)
+Here are the weights for the first convolution layer in the MNIST sample model, viewable by linking with opencv:
+![](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_tensorglow.png)
+
+
+This is a training log from the sample application:
+![](https://github.com/gnawice/mojo-cnn/wiki/images/cifar_log.png)
 
 
