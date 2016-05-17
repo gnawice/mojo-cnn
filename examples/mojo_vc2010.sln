@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test.vcxproj", "{855AB941-7417-414E-8FBA-8581CAFB03EA}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_omp", "test_omp.vcxproj", "{CA187A64-EC07-4C20-A96D-A60C87FDD402}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "train_cifar", "train_cifar.vcxproj", "{DA6A4565-A674-4210-B93B-7870E038FE69}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "train_mnist", "train_mnist.vcxproj", "{DA6A4565-A674-4210-B93B-7870E038FE65}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "mojo", "mojo", "{2ADCCC4F-A972-4662-A5EE-2FFF8360AEA0}"
+	ProjectSection(SolutionItems) = preProject
+		..\mojo\activation.h = ..\mojo\activation.h
+		..\mojo\core_math.h = ..\mojo\core_math.h
+		..\mojo\cost.h = ..\mojo\cost.h
+		..\mojo\layer.h = ..\mojo\layer.h
+		..\mojo\mojo.h = ..\mojo\mojo.h
+		..\mojo\network.h = ..\mojo\network.h
+		..\mojo\solver.h = ..\mojo\solver.h
+		..\mojo\util.h = ..\mojo\util.h
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release 2010|x64 = Release 2010|x64
+		Release 2015|x64 = Release 2015|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release 2010|x64.ActiveCfg = Release 2010|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release 2010|x64.Build.0 = Release 2010|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release 2015|x64.ActiveCfg = Release 2015|x64
+		{855AB941-7417-414E-8FBA-8581CAFB03EA}.Release 2015|x64.Build.0 = Release 2015|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release 2010|x64.ActiveCfg = Release 2010|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release 2010|x64.Build.0 = Release 2010|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release 2015|x64.ActiveCfg = Release 2015|x64
+		{CA187A64-EC07-4C20-A96D-A60C87FDD402}.Release 2015|x64.Build.0 = Release 2015|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release 2010|x64.ActiveCfg = Release 2010|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release 2010|x64.Build.0 = Release 2010|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release 2015|x64.ActiveCfg = Release 2015|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE69}.Release 2015|x64.Build.0 = Release 2015|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release 2010|x64.ActiveCfg = Release 2010|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release 2010|x64.Build.0 = Release 2010|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release 2015|x64.ActiveCfg = Release 2015|x64
+		{DA6A4565-A674-4210-B93B-7870E038FE65}.Release 2015|x64.Build.0 = Release 2015|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
