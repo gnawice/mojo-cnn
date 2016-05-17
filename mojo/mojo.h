@@ -39,7 +39,6 @@
 
 #ifdef MOJO_OMP
 #include <omp.h>
-#include <thread>
 #endif
 
 #ifdef MOJO_AF

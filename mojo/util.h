@@ -31,7 +31,11 @@
 
 #include <time.h>
 #include <string>
+#if (_MSC_VER  != 1600)
 #include <chrono>
+#else
+#include<time.h>
+#endif
 #include "core_math.h"
 #include "network.h"
 
@@ -66,19 +70,32 @@ class progress
 public:
 	progress(int size=-1, const char *label=NULL ) {reset(size, label);}
 
+#if (_MSC_VER  == 1600)
+	unsigned int start_progress_time;
+#else
 	std::chrono::time_point<std::chrono::system_clock>  start_progress_time;
+#endif
 	unsigned int total_progress_items;
 	std::string label_progress;
 	// if default values used, the values won't be changed from last call
 	void reset(int size=-1, const char *label=NULL ) 
 	{
+#if (_MSC_VER  == 1600)
+		start_progress_time= clock();
+#else
 		start_progress_time= std::chrono::system_clock::now();
+#endif
 		if(size>0) total_progress_items=size; if(label!=NULL) label_progress=label;
 	}
 	float elapsed_seconds() 
 	{	
+#if (_MSC_VER  == 1600)
+		float time_span = (clock() - start_progress_time)/CLOCKS_PER_SEC;
+		return time_span;
+#else
 		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now() - start_progress_time);
 		return (float)time_span.count();
+#endif
 	}
 	float remaining_seconds(int item_index)
 	{

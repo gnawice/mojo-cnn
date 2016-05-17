@@ -106,7 +106,7 @@ class network
 	
 	int _size;  // output size
 	int _thread_count; // determines number of layer sets (copys of layers)
-	const int MAIN_LAYER_SET = 0;
+	static const int MAIN_LAYER_SET = 0;
 
 	// training related stuff
 	int _batch_size;   // determines number of dW sets 
@@ -116,8 +116,8 @@ class network
 	double _running_sum_E;
 	cost_function *_cost_function;
 	solver *_solver;
-	const unsigned char BATCH_RESERVED = 1, BATCH_FREE = 0, BATCH_COMPLETE = 2;
-	const int BATCH_FILLED_COMPLETE = -2, BATCH_FILLED_IN_PROCESS = -1;
+	static const unsigned char BATCH_RESERVED = 1, BATCH_FREE = 0, BATCH_COMPLETE = 2;
+	static const int BATCH_FILLED_COMPLETE = -2, BATCH_FILLED_IN_PROCESS = -1;
 #ifdef MOJO_OMP
 	omp_lock_t _lock_batch;
 	void lock_batch() {omp_set_lock(&_lock_batch);}
@@ -240,7 +240,7 @@ public:
 	void enable_omp(int threads = -1)
 	{
 #ifdef MOJO_OMP
-		if (threads < 1) threads = std::thread::hardware_concurrency();
+		if (threads < 1) threads = omp_get_num_procs();
 		omp_set_num_threads(threads);
 #else
 		if (threads < 1) _thread_count = 1;
