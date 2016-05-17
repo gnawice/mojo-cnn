@@ -18,7 +18,7 @@ Features:
 + Portable: Tested with MS Developer Studio 2010, 2015, and Cygwin g++ 5.3.0. 
 + Logging: html training report
 
-API Examples:
+API Example:
 Load model and perform prediction:
 ```
 #include <mojo.h>
@@ -29,7 +29,7 @@ const int predicted_class=cnn.predict_class(float_image.data());
 
 ```
 
-Construction of a new CNN for MNIST, and train records with OpenMP threading:  
+API Example: Construction of a new CNN for MNIST, and train records with OpenMP threading:  
 ```
 #define MOJO_OMP
 #include <omp.h>
@@ -70,8 +70,12 @@ while(1)
 
 ```
 
-Here are the weights for the first convolution layer in the MNIST sample model, viewable by linking with opencv:
-![](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_tensorglow.png)
+Here are the weights for the first convolution layer in the MNIST sample model, viewable by linking with opencv, and shown in the color maps ```gray```, ```hot```, ```tensorglow```, and ```voodoo```:
+
+  ![gray](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_gray.png)
+  ![hot](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_hot.png)
+  ![tensorglow](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_tensorglow.png)
+  ![voodoo](https://github.com/gnawice/mojo-cnn/wiki/images/mnist_w0_voodoo.png)
 
 
 This is a training log from the sample application:
