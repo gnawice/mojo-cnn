@@ -1,10 +1,12 @@
 # mojo cnn (c++ convolutional neural network)
 
-Mojo is an efficient C++ CNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. Built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
+Mojo is an efficient C++ CNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  
+
+See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for the latest updates.
+
+Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. Built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
 
 The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute. 
-
-Latest change status is on the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki). 
 
 Features:
 + Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Resize, Concatenation (Fractional Max Pool, Maxout-like pooling). [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
@@ -15,8 +17,8 @@ Features:
 + Architecture: Branching allowed, multiple inputs, concatenation of layers
 + Solver: Smart training optimizes parameters, speeds up training, and provides exit criteria.
 + Image Support: Optional OpenCV utilities (in progress)
-+ Portable: Tested with MS Developer Studio 2010, 2015, and Cygwin g++ 5.3.0. 
-+ Logging: html training report
++ Portable: Tested with MS Developer Studio 2010, 2013, 2015, and Cygwin g++ 5.3.0. 
++ Logging: html training report graphing accuracy and logging epochs
 
 API Example:
 Load model and perform prediction:
@@ -32,7 +34,7 @@ const int predicted_class=cnn.predict_class(float_image.data());
 API Example: Construction of a new CNN for MNIST, and train records with OpenMP threading:  
 ```
 #define MOJO_OMP
-#include <omp.h>
+#include <mojo.h>
 
 ucnn::network cnn("adam");
 cnn.set_smart_train(true);
@@ -41,12 +43,12 @@ cnn.set_mini_batch_size(24);
 	
 // add layer definitions	
 cnn.push_back("I1","input 28 28 1");            // MNIST is 28x28x1
-cnn.push_back("C1","convolution 5 5 20 elu");   // 5x5 kernel, 20 maps.  out size is 28-5+1=24
+cnn.push_back("C1","convolution 5 20 1 elu");   // 5x5 kernel, 20 maps, stride 1.  out size is 28-5+1=24
 cnn.push_back("P1","semi_stochastic_pool 4 4"); // pool 4x4 blocks, stride 4. out size is 6
-cnn.push_back("C2","convolution 5 5 200 elu");  // 5x5 kernel, 200 maps.  out size is 6-5+1=2
+cnn.push_back("C2","convolution 5 200 1 elu");  // 5x5 kernel, 200 maps.  out size is 6-5+1=2
 cnn.push_back("P2","semi_stochastic_pool 2 2"); // pool 2x2 blocks. out size is 2/2=1 
 cnn.push_back("FC1","fully_connected 100 identity");// fully connected 100 nodes 
-cnn.push_back("FC2","fully_connected 10 tanh"); 
+cnn.push_back("FC2","fully_connected 10 softmax"); 
  
 cnn.connect_all(); // connect layers automatically (no branches)
 
