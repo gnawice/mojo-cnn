@@ -1,12 +1,12 @@
 # mojo cnn (c++ convolutional neural network)
 
-Mojo is an efficient C++ CNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  
+Mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  
 
-See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for the latest updates.
+See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for updates on what's new.
 
-Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. Built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
+Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. If built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
 
-The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute. 
+The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and best published results using only translation data augmentation of 99.71% (0.29% error) in about an hour.
 
 Features:
 + Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Resize, Concatenation (Fractional Max Pool, Maxout-like pooling). [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
