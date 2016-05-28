@@ -311,6 +311,12 @@ mojo::matrix bgr2ycrcb(mojo::matrix &m)
 	return m;
 }
 
+void save(mojo::matrix &m, std::string filename)
+{
+	cv::Mat m2 = matrix2cv(m,true);
+	//cv::resize(m2, m2, cv::Size(0, 0), 4, 4);
+	cv::imwrite(filename, m2);
+}
 void show(mojo::matrix &m, float zoom = 1.0f, const char *win_name = "", int wait_ms=1)
 {
 	if (m.cols <= 0 || m.rows <= 0 || m.chans <= 0) return;
@@ -376,8 +382,9 @@ cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo_palette::gr
 		else if (color_palette == mojo_palette::voodoo)
 		{
 			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
-			else if (c < 128) { RGB[2].data[i] = (127-c); RGB[1].data[i] = 0; RGB[0].data[i] = 2 * (127 - c); }
-			else { RGB[2].data[i] = 2 * (c - 128); RGB[1].data[i] = c; RGB[0].data[i] = 0; }
+			else if (c < 128) 
+			{ RGB[2].data[i] = (127-c); RGB[1].data[i] = 0; RGB[0].data[i] = 2 * (127 - c); }
+			else { RGB[2].data[i] =  (c - 128); RGB[1].data[i] = 2*(c-128); RGB[0].data[i] = 0; }
 		}
 	}
 
@@ -489,7 +496,7 @@ mojo::matrix draw_cnn_state(mojo::network &cnn, int layer_index, mojo::mojo_pale
 	}
 	// draw these nicely
 	int s = im_layers[0].cols;
-	cv::Mat tmp(s + 2, im_layers.size()*(1+s) + 1, CV_8UC1);// = im.clone();
+	cv::Mat tmp(s + 2, (int)im_layers.size()*(1+s) + 1, CV_8UC1);// = im.clone();
 	tmp = 255;
 	for (int i = 0; i < im_layers.size(); i++)
 	{

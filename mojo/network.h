@@ -208,7 +208,7 @@ public:
 			layer_sets.clear();
 		}
 		layer_sets.clear();
-		__for__(auto w __in__ W) delete w;  
+		__for__(auto w __in__ W) if(w) delete w;  
 		W.clear();
 		layer_map.clear();
 		layer_graph.clear();
@@ -267,6 +267,7 @@ public:
 	{
 		__for__(auto w __in__ W)
 		{
+			if (!w) continue;
 			matrix noise(w->cols, w->rows, w->chans);
 			noise.fill_random_normal(1.f/ noise.size());
 			//noise *= *w;
@@ -278,7 +279,7 @@ public:
 	void remove_means()
 	{
 		__for__(auto w __in__ W)
-			w->remove_mean();
+			if(w) w->remove_mean();
 	}
 
 	// used to push a layer back in the ORDERED list of layers
@@ -335,7 +336,11 @@ public:
 		}
 
 		// we need to let solver prepare space for stateful information 
-		if (_solver)	_solver->push_back(w->cols, w->rows, w->chans);
+		if (_solver)
+		{
+			if (w)_solver->push_back(w->cols, w->rows, w->chans);
+			else _solver->push_back(1, 1, 1);
+		}
 
 		int fan_in=l_bottom->fan_size();
 		int fan_out=l_top->fan_size();
@@ -353,7 +358,7 @@ public:
 				//		float weight_base = (float)(std::sqrt(.25/( (double)fan_in)));
 				w->fill_random_uniform(weight_base);
 			}
-			else if (strcmp(l_bottom->p_act->name, "sigmoid") == 0)
+			else if ((strcmp(l_bottom->p_act->name, "sigmoid") == 0) || (strcmp(l_bottom->p_act->name, "sigmoid") == 0))
 			{
 				// xavier : for sigmoid
 				float weight_base = 4.f*(float)(std::sqrt(6. / ((double)fan_in + (double)fan_out)));
@@ -373,7 +378,7 @@ public:
 				w->fill_random_uniform(weight_base);
 			}
 		}
-		else w->fill(0);
+		else if (w) w->fill(0);
 	}
 
 	// automatically connect all layers in the order they were provided 
@@ -413,6 +418,9 @@ public:
 		return max_index(out, out_size());
 	}
 
+	//----------------------------------------------------------------------------------------------------------
+	// F O R W A R D
+	//
 	// the main forward pass 
 	// if calling over multiple threads, provide the thread index since the interal data is not otherwise thread safe
 	// train parameter is used to designate the forward pass is used in training (it turns on dropout layers, etc..)
@@ -462,17 +470,31 @@ public:
 
 		}
 		// return pointer to float * result from last layer
+/*		std::cout << "out:";
+		for (int i = 0; i < 10; i++)
+		{
+			std::cout << layer_sets[_thread_number][layer_sets[_thread_number].size() - 1]->node.x[i] <<",";
+		}
+		std::cout << "\n";
+	*/
 		return layer_sets[_thread_number][layer_sets[_thread_number].size()-1]->node.x;
 	}
 
 	// write parameters to stream/file
 	// note that this does not persist intermediate training information that could be needed to 'pickup where you left off'
-	bool write(std::ofstream ofs, bool binary=false) 
+	bool write(std::ofstream ofs, bool binary = false, bool final = false)
 	{
 		// save layers
-		ofs<<(int)layer_sets[MAIN_LAYER_SET].size()<<std::endl;
+		int layer_cnt = (int)layer_sets[MAIN_LAYER_SET].size();
+//		int ignore_cnt = 0;
+//		for (int j = 0; j<(int)layer_sets[0].size(); j++)
+//			if (dynamic_cast<dropout_layer*> (layer_sets[0][j]) != NULL)  ignore_cnt++;
+
+		ofs<<(int)(layer_cnt)<<std::endl;
+		
 		for(int j=0; j<(int)layer_sets[0].size(); j++)
-			ofs<<layer_sets[MAIN_LAYER_SET][j]->name<<std::endl<<layer_sets[MAIN_LAYER_SET][j]->get_config_string();
+			ofs << layer_sets[MAIN_LAYER_SET][j]->name << std::endl << layer_sets[MAIN_LAYER_SET][j]->get_config_string();
+//			if (dynamic_cast<dropout_layer*> (layer_sets[0][j]) != NULL)
 
 		// save graph
 		ofs<<(int)layer_graph.size()<<std::endl;
@@ -485,10 +507,14 @@ public:
 			// binary version to save space if needed
 			// save bias info
 			for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size(); j++)
-				ofs.write((char*)layer_sets[MAIN_LAYER_SET][j]->bias.x, layer_sets[MAIN_LAYER_SET][j]->bias.size()*sizeof(float));
+				if(layer_sets[MAIN_LAYER_SET][j]->use_bias())
+					ofs.write((char*)layer_sets[MAIN_LAYER_SET][j]->bias.x, layer_sets[MAIN_LAYER_SET][j]->bias.size()*sizeof(float));
 			// save weights
-			for(int j=0; j<(int)W.size(); j++)
-				ofs.write((char*) W[j]->x, W[j]->size()*sizeof(float));
+			for (int j = 0; j < (int)W.size(); j++)
+			{
+				if (W[j])
+					ofs.write((char*)W[j]->x, W[j]->size()*sizeof(float));
+			}
 		}
 		else
 		{
@@ -496,21 +522,28 @@ public:
 			// save bias info
 			for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size(); j++)
 			{
-				for(int k=0; k<layer_sets[MAIN_LAYER_SET][j]->bias.size(); k++)  ofs << layer_sets[MAIN_LAYER_SET][j]->bias.x[k] << " ";
-				ofs <<std::endl;
+				if (layer_sets[MAIN_LAYER_SET][j]->use_bias())
+				{
+					for (int k = 0; k < layer_sets[MAIN_LAYER_SET][j]->bias.size(); k++)  ofs << layer_sets[MAIN_LAYER_SET][j]->bias.x[k] << " ";
+					ofs << std::endl;
+				}
 			}
 			// save weights
 			for(int j=0; j<(int)W.size(); j++)
 			{
-				for(int i=0; i<W[j]->size(); i++) ofs << W[j]->x[i] << " ";
-				ofs <<std::endl;
+				if (W[j])
+				{
+					for (int i = 0; i < W[j]->size(); i++) ofs << W[j]->x[i] << " ";
+					ofs << std::endl;
+				}
 			}
 		}
 		ofs.flush();
 		
 		return true;
 	}
-	bool write(std::string &filename, bool binary = false) { return write(std::ofstream(filename.c_str()), binary); }
+	bool write(std::string &filename, bool binary = false, bool final = false) { return write(std::ofstream(filename.c_str(), std::ios::binary), binary, final); }//, std::ofstream::binary);
+	bool write(const char *filename, bool binary = false, bool final = false) { return write(filename, binary, final); }
 
 	// read network from a file/stream
 	bool read(std::istream &ifs)
@@ -556,24 +589,38 @@ public:
 		if(binary)
 		{
 			for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size(); j++)
-				ifs.read((char*)layer_sets[MAIN_LAYER_SET][j]->bias.x, layer_sets[MAIN_LAYER_SET][j]->bias.size()*sizeof(float));
-			for(int j=0; j<(int)W.size(); j++)
-				ifs.read((char*) W[j]->x, W[j]->size()*sizeof(float));
+				if (layer_sets[MAIN_LAYER_SET][j]->use_bias())
+					ifs.read((char*)layer_sets[MAIN_LAYER_SET][j]->bias.x, 
+						layer_sets[MAIN_LAYER_SET][j]->bias.size()*sizeof(float));
+			for (int j = 0; j < (int)W.size(); j++)
+			{
+
+				if (W[j])
+				{
+					ifs.read((char*)W[j]->x, W[j]->size()*sizeof(float));
+				}
+			}
 		}
 		else // text version
 		{
 			// read bias
 			for(int j=0; j<layer_count; j++)
 			{
-				for(int k=0; k<layer_sets[MAIN_LAYER_SET][j]->bias.size(); k++)  ifs >> layer_sets[MAIN_LAYER_SET][j]->bias.x[k];
-				getline(ifs,s); // get endline
+				if (layer_sets[MAIN_LAYER_SET][j]->use_bias())
+				{
+					for (int k = 0; k < layer_sets[MAIN_LAYER_SET][j]->bias.size(); k++)  ifs >> layer_sets[MAIN_LAYER_SET][j]->bias.x[k];
+					getline(ifs, s); // get endline
+				}
 			}
 
 			// read weights
 			for (auto j=0; j<(int)W.size(); j++)
 			{
-				for(int i=0; i<W[j]->size(); i++) ifs >> W[j]->x[i] ;
-				getline(ifs,s); // get endline
+				if (W[j])
+				{
+					for (int i = 0; i < W[j]->size(); i++) ifs >> W[j]->x[i];
+					getline(ifs, s); // get endline
+				}
 			}
 		}
 		// copies batch=0 stuff to other batches
@@ -583,7 +630,7 @@ public:
 	}
 	bool read(std::string filename)
 	{
-		std::ifstream fs(filename.c_str(), std::ios::in | std::ios::binary);
+		std::ifstream fs(filename.c_str(),std::ios::binary);
 		if (fs.is_open())
 		{
 			bool ret = read(fs);
@@ -592,6 +639,7 @@ public:
 		}
 		else return false;
 	}
+	bool read(const char *filename) { return  read(std::string(filename)); }
 
 #ifndef NO_TRAINING_CODE  // this is surely broke by now and will need to be fixed
 
@@ -673,18 +721,18 @@ public:
 			{
 				int w_index = (int)link.first;
 				if (dW_sets[MAIN_LAYER_SET][w_index].size() > 0)
-					_solver->increment_w(W[w_index], w_index, dW_sets[MAIN_LAYER_SET][w_index]);  // -- 10%
+					if(W[w_index]) _solver->increment_w(W[w_index], w_index, dW_sets[MAIN_LAYER_SET][w_index]);  // -- 10%
 
 			}
-			if (dynamic_cast<convolution_layer*> (layer) != NULL)  continue;
-			for (int j = 0; j<layer->bias.size(); j++)
-				layer->bias.x[j] -= dbias_sets[0][k].x[j] * _solver->learning_rate;
+			layer->update_bias(dbias_sets[0][k], _solver->learning_rate);
 		}
 
+	
 		// prepare to start mini batch over
 		reset_mini_batch();
 		train_updates++; // could have no updates .. so this is not exact
 		sync_layer_sets();
+
 	}
 
 	// reserve_next.. is used to reserve a space in the minibatch for the existing training sample
@@ -756,7 +804,7 @@ public:
 			set_learning_rate((0.5f)*get_learning_rate());
 			if (get_learning_rate() < 0.000001f)
 			{
-				heat_weights();
+//				heat_weights();
 				set_learning_rate(0.000001f);
 				stuck_counter++;// end of the line.. so speed up end
 			}
@@ -798,6 +846,13 @@ public:
 		return elvis_left_the_building();
 	}
 
+	// if smart training was thinking about exiting, calling reset will make it think everything is OK
+	void reset_smart_training()
+	{
+		stuck_counter=0;
+		best_accuracy_count = 0;
+		best_estimated_accuracy = 0;
+	}
 	void update_smart_train(const float E, bool correct)
 	{
 
@@ -819,9 +874,9 @@ public:
 				{
 					_running_sum_E /= (double)s;
 					std::sort(_running_E.begin(), _running_E.end());
-					float top_fraction = (float)_running_sum_E*10.f;
-					const float max_fraction = 0.8f;
-					const float min_fraction = 0.03f;
+					float top_fraction = (float)_running_sum_E*10.f; //10.
+					const float max_fraction = 0.75f;
+					const float min_fraction = 0.075f;// 0.03f;
 
 					if (top_fraction > max_fraction) top_fraction = max_fraction;
 					if (top_fraction < min_fraction) top_fraction = min_fraction;
@@ -1002,6 +1057,111 @@ public:
 		return true;
 	}
 	
+	// after starting epoch, call this to train against a target vector
+	// for thread safety, you must pass in the thread_index if calling from different threads
+	// if positive=1, goal is to minimize the distance between in and target
+	bool train_target(float *in, float *target, int positive=1, int _thread_number = -1)
+	{
+		if (_solver == NULL) bail("set solver");
+		if (_thread_number < 0) _thread_number = get_thread_num();
+		if (_thread_number > _thread_count)  bail("call allow_threads()");
+
+		const int thread_number = _thread_number;
+
+		// get next free mini_batch slot
+		// this is tied to the current state of the model
+		int my_batch_index = reserve_next_batch();
+		// out of data or an error if index is negative
+		if (my_batch_index < 0) return false;
+		// run through forward to get nodes activated
+		float *out=forward(in, thread_number, 1);
+
+		// set all deltas to zero
+		__for__(auto layer __in__ layer_sets[thread_number]) layer->delta.fill(0.f);
+
+		int layer_cnt = (int)layer_sets[thread_number].size();
+
+		// calc delta for last layer to prop back up through network
+		// d = (target-out)* grad_activiation(out)
+		const int last_layer_index = layer_cnt - 1;
+		base_layer *layer = layer_sets[thread_number][last_layer_index];
+		const int layer_node_size = layer->node.size();
+
+		if (dynamic_cast<dropout_layer*> (layer) != NULL) bail("can't have dropout on last layer");
+
+		float E = 0;
+		int max_j_out = 0;
+		//int max_j_target = label_index;
+
+		// was passing this in, but may as well just create it on the fly
+		// a vector mapping the label index to the desired target output node values
+		// all -1 except target node 1
+//		std::vector<float> target;
+//		if ((std::string("sigmoid").compare(layer->p_act->name) == 0)
+//			|| (std::string("softmax").compare(layer->p_act->name) == 0))
+//			target = std::vector<float>(layer_node_size, 0);
+//		else
+//			target = std::vector<float>(layer_node_size, -1);
+//		if (label_index >= 0 && label_index<layer_node_size) target[label_index] = 1;
+
+		const float grad_fudge = 1.0f;
+		// because of numerator/demoninator cancellations which prevent a divide by zero issue, 
+		// we need to handle some things special on output layer
+		float cost_activation_type = 0;
+		if ((std::string("sigmoid").compare(layer->p_act->name) == 0) &&
+			(std::string("cross_entropy").compare(_cost_function->name) == 0))
+			cost_activation_type = 1;
+		else if ((std::string("softmax").compare(layer->p_act->name) == 0) &&
+			(std::string("cross_entropy").compare(_cost_function->name) == 0))
+			cost_activation_type = 1;
+		else if ((std::string("tanh").compare(layer->p_act->name) == 0) &&
+			(std::string("cross_entropy").compare(_cost_function->name) == 0))
+			cost_activation_type = 4;
+
+		for (int j = 0; j < layer_node_size; j++)
+		{
+			if (positive) // want to minimize distance
+			{
+				if (cost_activation_type > 0)
+					layer->delta.x[j] = grad_fudge*cost_activation_type*(layer->node.x[j] - target[j]);
+				else
+					layer->delta.x[j] = grad_fudge*_cost_function->d_cost(layer->node.x[j], target[j])*layer->df(layer->node.x, j, layer_node_size);
+			}
+			else
+			{
+				if (cost_activation_type > 0)
+					layer->delta.x[j] = grad_fudge*cost_activation_type*(1.f-abs(layer->node.x[j] - target[j]));
+				else
+					layer->delta.x[j] = grad_fudge*(1.f-abs(_cost_function->d_cost(layer->node.x[j], target[j])))*layer->df(layer->node.x, j, layer_node_size);
+			}
+			// pick best response
+			if (layer->node.x[max_j_out] < layer->node.x[j]) max_j_out = j;
+			// for better E maybe just look at 2 highest scores so zeros don't dominate 
+
+			// L2 distance x 2
+			E += mse::cost(layer->node.x[j], target[j]);
+		}
+
+		E /= (float)layer_node_size;
+		// check for NAN
+		if (E != E) bail("network blew up - try lowering learning rate\n");
+
+		// critical section in here, blocking update
+		bool match = false;
+// FIxME		if ((max_j_target == max_j_out)) match = true;
+		update_smart_train(E, match);
+
+		if (E>0 && E<_skip_energy_level && _smart_train && match)
+		{
+			lock_batch();
+			batch_open[my_batch_index] = BATCH_FREE;
+			unlock_batch();
+			return false;  // return without doing training
+		}
+		backward_hidden(my_batch_index, thread_number);
+		return true;
+	}
+
 #else
 
 	float get_learning_rate() {return 0;}

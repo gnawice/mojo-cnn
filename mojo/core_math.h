@@ -54,14 +54,19 @@ inline float dot(const float *x1, const float *x2, const int size)
 		return v;
 	};
 }
-
-inline void unwrap_aligned_5x5(float *aligned_out, const float *in, const int in_size)
+// in_size is 'line length'
+inline bool unwrap_aligned_5x5(float *aligned_out, const float *in, const int in_size, const int stride=1)
 {
 	const int node_size = in_size - 5 + 1;
 	int c1 = 0;
-	for (int j = 0; j < node_size; j += 1)//stride) // intput w
+	float mpty = 0;
+
+//	for (int k = 0; k < node_size*node_size; k++) mpty += in[k]* in[k];
+//	if (mpty < 1e-6) return false;
+
+	for (int j = 0; j < node_size; j += stride) // intput w
 	{
-		for (int i = 0; i < node_size; i += 1)//stride) // intput w
+		for (int i = 0; i < node_size; i += stride) // intput w
 		{
 			const float *tn = in + j*in_size + i;
 			int c2 = 0;
@@ -70,28 +75,63 @@ inline void unwrap_aligned_5x5(float *aligned_out, const float *in, const int in
 			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
 			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
 			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
+			c1 += 3;
+		}
+	}
+	return true;
+}
+
+inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in_size, const int stride=1)
+{
+	const int node_size = (in_size - 3) + 1;
+	int c1 = 0;
+	for (int j = 0; j < node_size; j += stride) // intput w
+	{
+		for (int i = 0; i < node_size; i += stride) // intput w
+		{
+			const float *tn = in + j*in_size + i;
+			int c2 = 0;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
 			c1 += 3;
 		}
 	}
 }
 
-inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in_size)
+inline void unwrap_aligned_4x4(float *aligned_out, const float *in, const int in_size, const int stride = 1)
 {
-	const int node_size = in_size - 3 + 1;
+	const int node_size = (in_size - 4) + 1;
 	int c1 = 0;
-	for (int j = 0; j < node_size; j += 1)//stride) // intput w
+	for (int j = 0; j < node_size; j += stride) // intput w
 	{
-		for (int i = 0; i < node_size; i += 1)//stride) // intput w
+		for (int i = 0; i < node_size; i += stride) // intput w
 		{
 			const float *tn = in + j*in_size + i;
 			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			c1 += 3;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
 		}
 	}
 }
+inline void unwrap_aligned_2x2(float *aligned_out, const float *in, const int in_size, const int stride = 1)
+{
+	const int node_size = (in_size - 2) + 1;
+	int c1 = 0;
+	for (int j = 0; j < node_size; j += stride) // intput w
+	{
+		for (int i = 0; i < node_size; i += stride) // intput w
+		{
+			const float *tn = in + j*in_size + i;
+			int c2 = 0;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 +=2; c2 += in_size;
+			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 +=2; c2 += in_size;
+		}
+	}
+}
+
 #ifndef MOJO_SSE3
 inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
 {
@@ -134,6 +174,21 @@ inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float 
 
 	}
 }
+
+inline void dot_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	const float *_filt = filter_ptr;
+
+
+	for (int j = 0; j < outsize; j += 1)//stride) // intput w
+	{
+		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
+		_img += 4; 
+		out[j] = c0;
+
+	}
+}
+
 #endif 
 
 inline void unwrap_aligned(float *aligned_out, const float *in, const int in_size, const int kernel_size)
@@ -229,6 +284,24 @@ inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float 
 		out[j] += _img[8] * filter_ptr[8];
 
 		_img += 12;
+	}
+}
+inline void dot_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	_mm_prefetch((const char *)(out), _MM_HINT_T0);
+	for (int j = 0; j < outsize; j += 1)//stride) // intput w
+	{
+		__m128 a, b, c0;
+		_mm_prefetch((const char *)(out + j), _MM_HINT_T0);
+		a = _mm_load_ps(_img); b = _mm_load_ps(filter_ptr);
+		c0 = _mm_mul_ps(a, b);
+
+		c0 = _mm_hadd_ps(c0, c0);
+		c0 = _mm_hadd_ps(c0, c0);
+
+		_mm_store_ss(&out[j], c0);
+
+		_img += 4;
 	}
 }
 // not finished
@@ -365,23 +438,31 @@ public:
 	std::string _name;
 	int cols, rows, chans;
 	float *x;
+	unsigned char *empty_chan;
 
-	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), x(NULL)  {} 
+	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), x(NULL), empty_chan(NULL){}
 
-	matrix( int _w, int _h, int _c=1, float *data=NULL): cols(_w), rows(_h), chans(_c) 
+	matrix( int _w, int _h, int _c=1, const float *data=NULL): cols(_w), rows(_h), chans(_c) 
 	{
 		_size=cols*rows*chans; _capacity=_size; x = new_x(_size); 
 		if(data!=NULL) memcpy(x,data,_size*sizeof(float));
+		
+		empty_chan = new unsigned char[chans];
+		memset(empty_chan, 0, chans);
 	}
 
+	inline void reset_empty_chans(){ memset(empty_chan, 0, chans); }
+
 	// copy constructor - deep copy
-	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); } // { v=m.v; x=(float*)v.data();}
+	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); empty_chan = new unsigned char[chans]; memcpy(empty_chan, m.empty_chan, chans);} // { v=m.v; x=(float*)v.data();}
 	// copy and pad constructor
 	matrix( const matrix &m, int pad_cols, int pad_rows) : cols(m.cols+2*pad_cols), rows(m.rows+2*pad_rows), chans(m.chans)
 	{
 		_size = cols*rows*chans;
 		_capacity = _size;
 		x = new_x(_size); 
+		empty_chan = new unsigned char[chans];
+		memcpy(empty_chan, m.empty_chan, chans);
 		fill(0);
 		for(int c=0; c<m.chans; c++)
 		for(int j=0; j<m.rows; j++)
@@ -391,17 +472,22 @@ public:
 		 
 	} // { v=m.v; x=(float*)v.data();}
 
-	~matrix() { if(x) delete_x();}
+	~matrix() { if (x) delete_x(); if (empty_chan) delete[] empty_chan; }
 	
 	matrix get_chans(int start_channel, int num_chans=1) const
 	{
 		return matrix(cols,rows,num_chans,&x[start_channel*cols*rows]);
 	}
 
+
 	// if edge_pad==0, then the padded area is just 0. Otherwise it fills with edge pixel colors
-	matrix pad(int dx, int dy, int edge_pad=0) const
+	matrix pad(int dx, int dy, int edge_pad = 0) const
 	{
-		matrix v(cols+2*dx,rows+2*dy,chans);
+		return pad(dx, dy, dx, dy, edge_pad);
+	}
+	matrix pad(int dx, int dy, int dx_right, int dy_bottom, int edge_pad=0) const
+	{
+		matrix v(cols+dx+dx_right,rows+dy+dy_bottom,chans);
 		v.fill(0);
 		//float *new_x = new float[chans*w*h]; 
 		for(int k=0; k<chans; k++)
@@ -417,7 +503,10 @@ public:
 					for(int i=0; i<dx; i++)
 					{
 						v.x[i+(j+dy)*v.cols+v_chan_offset]=x[0+j*cols+chan_offset];
-						v.x[i+dx+cols+(j+dy)*v.cols+v_chan_offset]=x[(cols-1)+j*cols+chan_offset];
+					}
+					for (int i = 0; i<dx_right; i++)
+					{
+						v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = x[(cols - 1) + j*cols + chan_offset];
 					}
 				}
 			}
@@ -427,7 +516,10 @@ public:
 				for(int j=0; j<dy; j++)
 				{
 					memcpy(&v.x[(j)*v.cols+v_chan_offset],&v.x[(dy)*v.cols+v_chan_offset], sizeof(float)*v.cols);
-					memcpy(&v.x[(j+dy+rows)*v.cols+v_chan_offset], &v.x[(rows-1+dy)*v.cols+v_chan_offset], sizeof(float)*v.cols);
+				}
+				for (int j = 0; j<dy_bottom; j++)
+				{
+					memcpy(&v.x[(j + dy + rows)*v.cols + v_chan_offset], &v.x[(rows - 1 + dy)*v.cols + v_chan_offset], sizeof(float)*v.cols);
 				}
 			}
 		}
@@ -540,6 +632,7 @@ public:
 	{
 		resize(m.cols, m.rows, m.chans);
 		memcpy(x,m.x,sizeof(float)*_size);
+		memcpy(empty_chan, m.empty_chan, chans);
 		return *this;
 	}
 
@@ -547,7 +640,15 @@ public:
 	
 	void resize(int _w, int _h, int _c) { 
 		int s = _w*_h*_c;
-		if(s>_capacity) { if(_capacity>0) delete_x(); _size = s; _capacity=_size; x = new_x(_size);}
+		if(s>_capacity) 
+		{ 
+			if(_capacity>0) delete_x(); _size = s; _capacity=_size; x = new_x(_size);
+		}
+		if (_c > chans)
+		{
+			if (empty_chan) delete[] empty_chan;
+			empty_chan = new unsigned char[_c];
+		}
 		cols=_w; rows=_h; chans=_c; _size=s;
 	} 
 	
