@@ -6,17 +6,32 @@ See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for updates on
 
 Consisting of only a handful of header files, mojo is in portable C++ with old fashioned C tricks for optimization. If built with OpenMP and SSE3, it's speed is competitive with other CPU based CNN frameworks. Being a minimal CPU solution, it is not designed to scale over a cluster to train very deep models (for that, go with GPUs and Caffe, TensorFlow, CMTK, Torch, etc…)
 
-The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network. 
+The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network.  
+
+Since tiny_cnn has a table:
+
+|   |mojo cnn with smart training | mojo cnn | tiny cnn | caffe |
+| --- |--- | --- | --- | --- |
+| training speed (1st epoch time, MINST 2 layer) | 9 sec | 33 sec | 72 sec |  |
+| Required external dependencies | none | none | none, but examples use TBB by default |  |
+| Support MSVC 2010 | yes | yes | no | no |
+| Branching | yes | yes | no | yes |
+| Multiple Inputs | yes | yes | no |  | 
+| Real-time Data Augmentation | yes | yes | no |   |
+| Automatic training | yes | no | yes | no | 
+| Training Logs | yes | yes | no | 
+| Caffe Model Zoo | no | no | some | yes |
+
 
 Features:
-+ Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Resize, Concatenation (Fractional Max Pool, Maxout-like pooling). [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
++ Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
 + Activation Functions: Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax
 + Optimization: Stochastic Gradient Descent, RMSProp, AdaGrad, Adam
 + Loss Functions: Mean Squared Error, Cross Entropy
 + Threading: optional and externally controlled at the application level using OpenMP
 + Architecture: Branching allowed, multiple inputs, concatenation of layers
 + Solver: Smart training optimizes parameters, speeds up training, and provides exit criteria.
-+ Image Support: Optional OpenCV utilities (in progress)
++ Image Support: Optional OpenCV utilities
 + Portable: Tested with MS Developer Studio 2010, 2013, 2015, and Cygwin g++ 5.3.0. 
 + Logging: html training report graphing accuracy and logging epochs
 
