@@ -52,13 +52,12 @@
 #include "mnist_parser.h"
 using namespace mnist;
 std::string data_path = "../data/mnist/";
-std::string model_file = "../models/mojo_mnist.model";
-
+std::string model_file = "../models/mnist_deepcnet.mojo";
 /*/
 #include "cifar_parser.h"
 using namespace cifar;
 std::string data_path="../data/cifar-10-batches-bin/";
-std::string model_file="../models/mojo_cifar.model";
+std::string model_file="../models/cifar_deepcnet.mojo";
 //*/
 
 void test(mojo::network &cnn, const std::vector<std::vector<float>> &test_images, const std::vector<int> &test_labels)

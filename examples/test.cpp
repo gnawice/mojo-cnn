@@ -41,20 +41,20 @@
 #include <stdio.h>
 #include <tchar.h>
 
-//#define MOJO_CV3
+#define MOJO_CV3
 #include <mojo.h>
 
 //*
 #include "mnist_parser.h"
 using namespace mnist;
 std::string data_path="../data/mnist/";
-std::string model_file="../models/mojo_mnist.model";
+std::string model_file="../models/mnist_deepcnet.mojo";
 
 /*/
 #include "cifar_parser.h"
 using namespace cifar;
 std::string data_path="../data/cifar-10-batches-bin/";
-std::string model_file="../models/mojo_cifar.model";
+std::string model_file="../models/cifar_deepcnet.mojo";
 //*/
 
 void test(mojo::network &cnn, const std::vector<std::vector<float>> &test_images, const std::vector<int> &test_labels)
@@ -103,7 +103,7 @@ int main()
 	std::cout << cnn.get_configuration() << std::endl;
 
 //#ifdef MOJO_CV3
-//	mojo::show(mojo::draw_cnn_weights(cnn, mojo::mojo_palette::gray,1), 7, "Weights");
+//	mojo::show(mojo::draw_cnn_weights(cnn, mojo::mojo_palette::voodoo,0), 7, "Weights");
 //#endif
 
 	// == run the test
