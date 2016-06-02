@@ -1,6 +1,6 @@
-# mojo cnn (c++ convolutional neural network)
+# mojo cnn (header only c++ convolutional neural network)
 
-Mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance hack-ability, functionality, and speed.  
+Mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed.  
 
 See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for updates on what's new.
 
@@ -14,14 +14,12 @@ Since tiny_cnn has a table:
 | --- |--- | --- | --- | --- |
 | training speed (1st epoch time, MINST 2 layer) | 9 sec | 33 sec | 72 sec |  |
 | Required external dependencies | none | none | none, but examples use TBB by default |  |
-| Support MSVC 2010 | yes | yes | no | no |
-| Branching | yes | yes | no | yes |
-| Multiple Inputs | yes | yes | no |  | 
-| Real-time Data Augmentation | yes | yes | no |   |
-| Automatic training | yes | no | yes | no | 
-| Training Logs | yes | yes | no | 
+| GCC/MSVC 2010/2013/2015 | yes/yes/yes/yes | yes/yes/yes/yes | yes/no/yes/yes | yes/no/yes/yes |
+| Branching & Multiple Inputs | yes | yes | no | yes |
+| Real-time Data Augmentation | yes | yes | no | ?  |
+| Automatic training | yes | no | no | no | 
+| Training Logs | yes | yes | no | ? |
 | Caffe Model Zoo | no | no | some | yes |
-
 
 Features:
 + Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
