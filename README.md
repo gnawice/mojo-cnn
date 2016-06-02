@@ -1,4 +1,5 @@
-# mojo cnn (header only c++ convolutional neural network)
+# mojo cnn 
+##c++ convolutional neural network
 
 Mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed.  
 
