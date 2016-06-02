@@ -122,13 +122,13 @@ int main()
 
 	// configure network 
 	cnn.push_back("I1", "input 32 32 3");				// CIFAR is 32x32x3
-	cnn.push_back("C1", "convolution 5 5 32 elu");		// 32-5+1=28
+	cnn.push_back("C1", "convolution 5 32 1 elu");		// 32-5+1=28
 	cnn.push_back("P1", "semi_stochastic_pool 2 2");		// 14
-	cnn.push_back("C2", "convolution 5 5 32 elu");		// 10
+	cnn.push_back("C2", "convolution 5 32 1 elu");		// 10
 	cnn.push_back("P2", "semi_stochastic_pool 2 2");		// 5
-	cnn.push_back("C3", "convolution 5 5 64 elu");		// 1	
+	cnn.push_back("C3", "convolution 5 64 1 elu");		// 1	
 	cnn.push_back("DO1", "dropout 0.2");
-	cnn.push_back("FC1", "fully_connected 100 identity");	// fully connected 100 nodes, ReLU 
+	cnn.push_back("FC1", "fully_connected 100 elu");	// fully connected 100 nodes, ReLU 
 	cnn.push_back("DO2", "dropout 0.4");
 	cnn.push_back("FC2", "fully_connected 10 tanh");
 
@@ -189,7 +189,7 @@ int main()
 
 		// save model
 		std::string model_file = "../models/snapshots/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
-		cnn.write(model_file);
+		cnn.write(model_file, true);
 		std::cout << "  saved model:\t\t" << model_file << std::endl << std::endl;
 
 		// write log file

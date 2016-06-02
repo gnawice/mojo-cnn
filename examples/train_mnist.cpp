@@ -45,7 +45,7 @@
 #include <util.h>
 #include "mnist_parser.h"
 
-const int mini_batch_size = 20;
+const int mini_batch_size = 24;
 const float initial_learning_rate = 0.02f;
 std::string solver = "adam";
 std::string data_path="../data/mnist/";
@@ -97,14 +97,15 @@ int main()
 	 
 	// configure network 
 	cnn.push_back("I1", "input 28 28 1");			// MNIST is 28x28x1
-	cnn.push_back("C1", "convolution 5 5 20 elu");	// 5x5 kernel, 20 maps.  out size is 28-5+1=24
-	cnn.push_back("P1", "semi_stochastic_pool 3");	// pool 3x3 blocks. outsize is 8
-	cnn.push_back("D3", "dropout 0.1");
-	cnn.push_back("C2", "convolution 5 5 200 elu");	// 5x5 kernel, 200 maps.  out size is 8-5+1=4
-	cnn.push_back("P2", "semi_stochastic_pool 4");	// pool 4x4 blocks. outsize is 1 
-	cnn.push_back("D2", "dropout 0.3");
-	cnn.push_back("FC1", "fully_connected 100 identity");// fully connected 100 nodes 
-	cnn.push_back("D1", "dropout 0.4");
+	cnn.push_back("C1", "convolution 5 20 1 elu");	// 5x5 kernel, 20 maps. stride 1. out size is 28-5+1=24
+	cnn.push_back("P1", "semi_stochastic_pool 3 3");	// pool 3x3 blocks. stride 3. outsize is 8
+//	cnn.push_back("D3", "dropout 0.25");
+	cnn.push_back("C2", "convolution 5 200 1 elu");	// 5x5 kernel, 200 maps.  out size is 8-5+1=4
+	cnn.push_back("P2", "semi_stochastic_pool 4 4");	// pool 4x4 blocks. stride 4. outsize is 1 
+//	cnn.push_back("D2", "dropout 0.5");
+// these FC layers don't really seem to be needed
+//	cnn.push_back("FC1", "fully_connected 100 elu");// fully connected 100 nodes 
+//	cnn.push_back("D1", "dropout 0.4");
 	cnn.push_back("FC2", "fully_connected 10 tanh");
 
 
@@ -122,6 +123,7 @@ int main()
 	// setup timer/progress for overall training
 	mojo::progress overall_progress(-1, "  overall:\t\t");
 	const int train_samples = (int)train_images.size();
+	float old_accuracy = 0; 
 	while (1)
 	{
 		overall_progress.draw_header(data_name() + "  Epoch  " + std::to_string((long long)cnn.get_epoch() + 1), true);
@@ -164,9 +166,16 @@ int main()
 		float accuracy = test(cnn, test_images, test_labels);
 		std::cout << "  test accuracy:\t" << accuracy << "% (" << 100.f - accuracy << "% error)      " << std::endl;
 
+		// if accuracy is improving, reset the training logic that may be thinking about quitting
+		if (accuracy > old_accuracy)
+		{
+			cnn.reset_smart_training();
+			old_accuracy = accuracy;
+		}
+
 		// save model
 		std::string model_file = "../models/snapshots/tmp_" + std::to_string((long long)cnn.get_epoch()) + ".txt";
-		cnn.write(model_file);
+		cnn.write(model_file,true);
 		std::cout << "  saved model:\t\t" << model_file << std::endl << std::endl;
 
 		// write log file
