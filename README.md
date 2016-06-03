@@ -1,7 +1,7 @@
 # mojo cnn 
-##c++ convolutional neural network
+#### the *fast* and *easy* header only c++ convolutional neural network package 
 
-Mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed.  
+mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed.  
 
 See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for updates on what's new.
 
@@ -9,18 +9,20 @@ Consisting of only a handful of header files, mojo is in portable C++ with old f
 
 The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network.  
 
-Since tiny_cnn has a table:
 
-|   |mojo cnn with smart training | mojo cnn | tiny cnn | caffe |
-| --- |--- | --- | --- | --- |
-| training speed (1st epoch time, MINST 2 layer) | 9 sec | 33 sec | 72 sec |  |
-| Required external dependencies | none | none | none, but examples use TBB by default |  |
-| GCC/MSVC 2010/2013/2015 | yes/yes/yes/yes | yes/yes/yes/yes | yes/no/yes/yes | yes/no/yes/yes |
-| Branching & Multiple Inputs | yes | yes | no | yes |
-| Real-time Data Augmentation | yes | yes | no | ?  |
-| Automatic training | yes | no | no | no | 
-| Training Logs | yes | yes | no | ? |
-| Caffe Model Zoo | no | no | some | yes |
+|   | mojo cnn  | Brand X |
+| --- |--- | --- |
+| training speed (1st epoch time, MINST 2 layer) | 33 sec (9 sec with smart training) with CPU | slower on Windows unless GPU used |
+| Required external dependencies | none | lucky to find a clean package. Maybe tiny_cnn |
+| Native Windows Support | yes | Rare to find |
+| Mutli-core support | yes | Jump through hoops to get this running in Caffe |
+| GCC/MSVC 2010/2013/2015 | yes/yes/yes/yes | Very Doubtful to find support for VC2010 or pre C++11  |
+| Branching & Multiple Inputs | yes |  Some |
+| Real-time Data Augmentation | yes | Good luck |
+| Automatic training | yes | ? |
+| Training Log | html with graph | usually text or nothing |
+| GPU Support | no | most other packages are only usable with GPUs |
+| Model Zoo | only MNIST and CIFAR-10 | other packages are much better here (Caffe, Torch) |
 
 Features:
 + Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
