@@ -1,7 +1,7 @@
 # mojo cnn 
 #### the *fast* and *easy* header only c++ convolutional neural network package 
 
-mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed.  
+mojo is an efficient C++ CNN / DNN implementation that was built with the goal to balance usability, functionality, and speed. It is ideal for use in real-world applications.  
 
 See the [mojo cnn wiki](https://github.com/gnawice/mojo-cnn/wiki) for updates on what's new.
 
@@ -10,15 +10,16 @@ Consisting of only a handful of header files, mojo is in portable C++ with old f
 The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network.  
 
 
-|   | mojo cnn  | Brand X |
+|   | mojo cnn  | others |
 | --- |--- | --- |
 | training speed (1st epoch time, MINST 2 layer) | 33 sec (9 sec with smart training) with CPU | slower on Windows unless GPU used |
-| Required external dependencies | none | lucky to find a clean package. Maybe tiny_cnn |
-| Native Windows Support | yes | Rare to find |
-| Mutli-core support | yes | Jump through hoops to get this running in Caffe |
+| Required external dependencies | none | maybe tiny_cnn |
+| Embeddable C++ | yes | no |
+| Native Windows Support | yes | caffe branch, but scripts don't work  |
+| Mutli-core support | yes | not easy in Caffe with Windows |
 | GCC/MSVC 2010/2013/2015 | yes/yes/yes/yes | Very Doubtful to find support for VC2010 or pre C++11  |
-| Branching & Multiple Inputs | yes |  Some |
-| Real-time Data Augmentation | yes | Good luck |
+| Branching & Multiple Inputs | yes |  some |
+| Real-time Data Augmentation | yes | not easy to hack it in |
 | Automatic training | yes | ? |
 | Training Log | html with graph | usually text or nothing |
 | GPU Support | no | most other packages are only usable with GPUs |
