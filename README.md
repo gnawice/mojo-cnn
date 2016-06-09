@@ -10,11 +10,15 @@ Consisting of only a handful of header files, mojo is in portable C++ with old f
 The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network.  
 
 
-|   | mojo specs  | 
-| --- |--- | 
-| training speed (1st epoch time, MINST 2 layer) | about 10 sec with smart training on CPU | 
+|                   | mojo specs  | 
+| ---------------------------- |--- | 
+| Layers | Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, DeepCNet, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers) |
+| Activations | Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax |
+| Solvers | Stochastic Gradient Descent, RMSProp, AdaGrad, Adam |
+| Loss Functions | Mean Squared Error, Cross Entropy |
+| Padding | Zero, Edge, Median Border Value |
+| Training speed (1st epoch time, MINST 2 layer) | about 10 sec with smart training on CPU | 
 | Required external dependencies | none | 
-| Embeddable C++ | yes | 
 | Native Windows Support | yes | 
 | Mutli-core support | yes (OpenMP) | 
 | g++ 5.3.0/MSVC 2010/2013/2015 | yes/yes/yes/yes | 
@@ -25,11 +29,6 @@ The mojo cnn API provides a 'smart training' option which abstracts the manageme
 | HTML Training Log and Graphing | yes |
 | GPU Support | no | 
 | Model Zoo | only MNIST and CIFAR-10 | 
-| Layers | Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers) |
-| Activations | Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax |
-| Solvers | Stochastic Gradient Descent, RMSProp, AdaGrad, Adam |
-| Loss Functions | Mean Squared Error, Cross Entropy |
-| Padding | Zero, Edge, Median |
 
 API Example:
 Load model and perform prediction:
