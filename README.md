@@ -10,32 +10,26 @@ Consisting of only a handful of header files, mojo is in portable C++ with old f
 The mojo cnn API provides a 'smart training' option which abstracts the management of the training process but still provides the flexibility to handle the threading and input data as you'd like (enabling real-time data augmentation). Just make a loop and pass in training samples until mojo cnn says stop. You are therefore not limited by the RAM required to hold your data. On the standard MNIST handwritten digit database, mojo's 'smart training' gives 99% accuracy in less than a minute and using only random shifts data augmentation, an accuracy of 99.71% (0.29% error) in about an hour. After a couple of hours 99.75% (0.25%) accuracy is achieved with DeepCNet type of network.  
 
 
-|   | mojo cnn  | others |
-| --- |--- | --- |
-| training speed (1st epoch time, MINST 2 layer) | 33 sec (9 sec with smart training) with CPU | slower on Windows unless GPU used |
-| Required external dependencies | none | maybe tiny_cnn |
-| Embeddable C++ | yes | no |
-| Native Windows Support | yes | caffe branch, but scripts don't work  |
-| Mutli-core support | yes | not easy in Caffe with Windows |
-| GCC/MSVC 2010/2013/2015 | yes/yes/yes/yes | Very Doubtful to find support for VC2010 or pre C++11  |
-| Branching & Multiple Inputs | yes |  some |
-| Real-time Data Augmentation | yes | not easy to hack it in |
-| Automatic training | yes | ? |
-| Training Log | html with graph | usually text or nothing |
-| GPU Support | no | most other packages are only usable with GPUs |
-| Model Zoo | only MNIST and CIFAR-10 | other packages are much better here (Caffe, Torch) |
-
-Features:
-+ Layers:  Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers)
-+ Activation Functions: Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax
-+ Optimization: Stochastic Gradient Descent, RMSProp, AdaGrad, Adam
-+ Loss Functions: Mean Squared Error, Cross Entropy
-+ Threading: optional and externally controlled at the application level using OpenMP
-+ Architecture: Branching allowed, multiple inputs, concatenation of layers
-+ Solver: Smart training optimizes parameters, speeds up training, and provides exit criteria.
-+ Image Support: Optional OpenCV utilities
-+ Portable: Tested with MS Developer Studio 2010, 2013, 2015, and Cygwin g++ 5.3.0. 
-+ Logging: html training report graphing accuracy and logging epochs
+|   | mojo specs  | 
+| --- |--- | 
+| training speed (1st epoch time, MINST 2 layer) | about 10 sec with smart training on CPU | 
+| Required external dependencies | none | 
+| Embeddable C++ | yes | 
+| Native Windows Support | yes | 
+| Mutli-core support | yes (OpenMP) | 
+| g++ 5.3.0/MSVC 2010/2013/2015 | yes/yes/yes/yes | 
+| Branching  | yes |
+| Multiple Inputes | yes |
+| Real-time Data Augmentation | yes, random shift, rotate/scale available if linking OpenCV | 
+| Automatic training | yes | 
+| HTML Training Log and Graphing | yes |
+| GPU Support | no | 
+| Model Zoo | only MNIST and CIFAR-10 | 
+| Layers | Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers) |
+| Activations | Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax |
+| Solvers | Stochastic Gradient Descent, RMSProp, AdaGrad, Adam |
+| Loss Functions | Mean Squared Error, Cross Entropy |
+| Padding | Zero, Edge, Median |
 
 API Example:
 Load model and perform prediction:
@@ -58,7 +52,7 @@ cnn.set_smart_train(true);
 cnn.enable_omp();
 cnn.set_mini_batch_size(24);
 	
-// add layer definitions	
+// add layer definitions. format : "layer_name", "layer_type    params"
 cnn.push_back("I1","input 28 28 1");            // MNIST is 28x28x1
 cnn.push_back("C1","convolution 5 20 1 elu");   // 5x5 kernel, 20 maps, stride 1.  out size is 28-5+1=24
 cnn.push_back("P1","semi_stochastic_pool 4 4"); // pool 4x4 blocks, stride 4. out size is 6
