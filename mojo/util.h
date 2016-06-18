@@ -229,66 +229,6 @@ public:
 
 #if defined(MOJO_CV2) || defined(MOJO_CV3)
 
-cv::Mat matrix2cv(mojo::matrix &m, bool uc8 = false)
-{
-	cv::Mat cv_m;
-	if (m.chans != 3)
-	{
-		cv_m = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
-	}
-	if (m.chans == 3)
-	{
-		cv::Mat in[3];
-		in[0] = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
-		in[1] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[m.cols*m.rows]);
-		in[2] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[2 * m.cols*m.rows]);
-		cv::merge(in, 3, cv_m);
-	}
-	if (uc8)
-	{
-		double min_, max_;
-		cv_m = cv_m.reshape(1);
-		cv::minMaxIdx(cv_m, &min_, &max_);
-		cv_m = cv_m - min_;
-		max_ = max_ - min_;
-		cv_m /= max_;
-		cv_m *= 255;
-		cv_m = cv_m.reshape(m.chans, m.rows);
-		if (m.chans != 3)
-			cv_m.convertTo(cv_m, CV_8UC1);
-		else
-			cv_m.convertTo(cv_m, CV_8UC3);
-	}
-	return cv_m;
-}
-
-mojo::matrix cv2matrix(cv::Mat &m)
-{
-	if (m.type() == CV_8UC1)
-	{
-		m.convertTo(m, CV_32FC1);
-		m = m / 255.;
-	}
-	if (m.type() == CV_8UC3)
-	{
-		m.convertTo(m, CV_32FC3);
-	}
-	if (m.type() == CV_32FC1)
-	{
-		return mojo::matrix(m.cols, m.rows, 1, (float*)m.data);
-	}
-	if (m.type() == CV_32FC3)
-	{
-		cv::Mat in[3];
-		cv::split(m, in);
-		mojo::matrix out(m.cols, m.rows, 3);
-		memcpy(out.x, in[0].data, m.cols*m.rows * sizeof(float));
-		memcpy(&out.x[m.cols*m.rows], in[1].data, m.cols*m.rows * sizeof(float));
-		memcpy(&out.x[2 * m.cols*m.rows], in[2].data, m.cols*m.rows * sizeof(float));
-		return out;
-	}
-	return  mojo::matrix(0, 0, 0);
-}
 mojo::matrix bgr2ycrcb(mojo::matrix &m)
 {
 	cv::Mat cv_m = matrix2cv(m);
@@ -317,7 +257,8 @@ void save(mojo::matrix &m, std::string filename)
 	//cv::resize(m2, m2, cv::Size(0, 0), 4, 4);
 	cv::imwrite(filename, m2);
 }
-void show(mojo::matrix &m, float zoom = 1.0f, const char *win_name = "", int wait_ms=1)
+
+void show(const mojo::matrix &m, float zoom = 1.0f, const char *win_name = "", int wait_ms=1)
 {
 	if (m.cols <= 0 || m.rows <= 0 || m.chans <= 0) return;
 	cv::Mat cv_m = matrix2cv(m);
@@ -519,6 +460,8 @@ mojo::matrix draw_cnn_state(mojo::network &cnn, std::string layer_name, mojo::mo
 	int layer_index = cnn.layer_map[layer_name];
 	return draw_cnn_state(cnn, layer_index, color_palette);
 }
+
+
 
 #endif // MOJO_CV#
 
