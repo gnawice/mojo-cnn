@@ -53,9 +53,29 @@
 	#endif
 #endif
 
+#ifdef MOJO_CV2
+#include "opencv2/opencv.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/contrib/contrib.hpp"
+
+#pragma comment(lib, "opencv_core249")
+#pragma comment(lib, "opencv_highgui249")
+#pragma comment(lib, "opencv_imgproc249")
+#pragma comment(lib, "opencv_contrib249")
+#endif
+
+#ifdef MOJO_CV3
+#include "opencv2/opencv.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+
+#pragma comment(lib, "opencv_world310")
+#endif
+
 namespace mojo {
 
-// sleep needed for threading
+	// sleep needed for threading
 #ifdef _WIN32
 #include <windows.h>
 	void mojo_sleep(unsigned milliseconds) { Sleep(milliseconds); }
@@ -64,15 +84,144 @@ namespace mojo {
 	void mojo_sleep(unsigned milliseconds) { usleep(milliseconds * 1000); }
 #endif
 
-void replace_str(std::string& str, const std::string& from, const std::string& to) {
-	if (from.empty())
-		return;
-	size_t start_pos = 0;
-	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-		str.replace(start_pos, from.length(), to);
-		start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+	void replace_str(std::string& str, const std::string& from, const std::string& to) {
+		if (from.empty())
+			return;
+		size_t start_pos = 0;
+		while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+			str.replace(start_pos, from.length(), to);
+			start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+		}
 	}
-}
+
+#if defined(MOJO_CV2) || defined(MOJO_CV3)
+	// transforms image. 
+	// x_center, y_center of input
+	// out dim is size of output w or h
+	// theta in degrees
+	cv::Mat matrix2cv(const mojo::matrix &m, bool uc8 = false)
+	{
+		cv::Mat cv_m;
+		if (m.chans != 3)
+		{
+			cv_m = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
+		}
+		if (m.chans == 3)
+		{
+			cv::Mat in[3];
+			in[0] = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
+			in[1] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[m.cols*m.rows]);
+			in[2] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[2 * m.cols*m.rows]);
+			cv::merge(in, 3, cv_m);
+		}
+		if (uc8)
+		{
+			double min_, max_;
+			cv_m = cv_m.reshape(1);
+			cv::minMaxIdx(cv_m, &min_, &max_);
+			cv_m = cv_m - min_;
+			max_ = max_ - min_;
+			cv_m /= max_;
+			cv_m *= 255;
+			cv_m = cv_m.reshape(m.chans, m.rows);
+			if (m.chans != 3)
+				cv_m.convertTo(cv_m, CV_8UC1);
+			else
+				cv_m.convertTo(cv_m, CV_8UC3);
+		}
+		return cv_m;
+	}
+
+	mojo::matrix cv2matrix(cv::Mat &m)
+	{
+		if (m.type() == CV_8UC1)
+		{
+			m.convertTo(m, CV_32FC1);
+			m = m / 255.;
+		}
+		if (m.type() == CV_8UC3)
+		{
+			m.convertTo(m, CV_32FC3);
+		}
+		if (m.type() == CV_32FC1)
+		{
+			return mojo::matrix(m.cols, m.rows, 1, (float*)m.data);
+		}
+		if (m.type() == CV_32FC3)
+		{
+			cv::Mat in[3];
+			cv::split(m, in);
+			mojo::matrix out(m.cols, m.rows, 3);
+			memcpy(out.x, in[0].data, m.cols*m.rows * sizeof(float));
+			memcpy(&out.x[m.cols*m.rows], in[1].data, m.cols*m.rows * sizeof(float));
+			memcpy(&out.x[2 * m.cols*m.rows], in[2].data, m.cols*m.rows * sizeof(float));
+			return out;
+		}
+		return  mojo::matrix(0, 0, 0);
+	}
+	mojo::matrix transform(const mojo::matrix in, const int x_center, const int y_center,
+		int out_dim, float theta = 0, float scale = 1.f)
+	{
+		const double _pi = 3.14159265358979323846;
+		float cos_theta = (float)std::cos(theta / 180.*_pi);
+		float sin_theta = (float)std::sin(theta / 180.*_pi);
+		float half_dim = 0.5f*(float)out_dim / scale;
+
+		cv::Point2f  pts1[4], pts2[4];
+		pts1[0] = cv::Point2f(x_center - half_dim, y_center - half_dim);
+		pts1[1] = cv::Point2f(x_center + half_dim, y_center - half_dim);
+		pts1[2] = cv::Point2f(x_center + half_dim, y_center + half_dim);
+		pts1[3] = cv::Point2f(x_center - half_dim, y_center + half_dim);
+
+		pts2[0] = cv::Point2f(-half_dim, -half_dim);
+		pts2[1] = cv::Point2f(half_dim, -half_dim);
+		pts2[2] = cv::Point2f(half_dim, half_dim);
+		pts2[3] = cv::Point2f(-half_dim, half_dim);
+
+		// rotate around center spot
+		for (int pt = 0; pt<4; pt++)
+		{
+			float x_t = (pts2[pt].x)*scale;
+			float y_t = (pts2[pt].y)*scale;
+			float x = cos_theta*x_t - sin_theta*y_t;
+			float y = sin_theta*x_t + cos_theta*y_t;
+
+			pts2[pt].x = x + (float)x_center;
+			pts2[pt].y = y + (float)y_center;
+
+			// we want to control how data is scaled down
+			//		if (scale>1)
+			//		{
+			//			pts1[pt].x = pts1[pt].x / (float)scale;
+			//			pts1[pt].y = pts1[pt].y / (float)scale;
+			//		}
+		}
+
+		cv::Mat input = mojo::matrix2cv(in);
+
+		//	if (scale>1)
+		//		cv::resize(in, input, cv::Size(0, 0), 1. / scale, 1. / scale);
+		//	else
+		//		input = in;
+
+
+		cv::Mat M = cv::getPerspectiveTransform(pts1, pts2);
+		cv::Mat cv_out;
+
+		cv::warpPerspective(input, cv_out,
+			cv::getPerspectiveTransform(pts1, pts2),
+			cv::Size((int)((float)out_dim), (int)((float)out_dim)),
+			cv::INTER_AREA, cv::BORDER_REPLICATE); //cv::INTER_LINEAR
+
+												   //INTER_AREA
+
+
+												   //	double min;
+												   //	cv::minMaxIdx(cv_out, &min);
+												   //	std::cout << "min: " << min << "||";
+		return mojo::cv2matrix(cv_out);
+	}
+#endif
 
 // returns Energy (euclidian distance / 2) and max index
 float match_labels(const float *out, const float *target, const int size, int *best_index = NULL)
@@ -146,6 +295,15 @@ public:
 	int best_accuracy_count;
 	float old_estimated_accuracy;
 	float estimated_accuracy;
+// data augmentation stuff
+	int use_augmentation; // 0=off, 1=mojo, 2=opencv
+	int augment_x, augment_y;
+	int augment_h_flip, augment_v_flip;
+	mojo::pad_type augment_pad;
+	float augment_theta;
+	float augment_scale;
+
+
 
 	// here we have multiple sets of the layers to allow threading and batch processing
 	// a separate layer set is needed for each independent thread
@@ -184,6 +342,11 @@ public:
 		stuck_counter = 0;
 		best_estimated_accuracy=0;
 		best_accuracy_count=0;
+		use_augmentation=0;
+		augment_x = 0; augment_y = 0; augment_h_flip = 0; augment_v_flip = 0; 
+		augment_pad =mojo::pad_type::edge; 
+		augment_theta=0; augment_scale=0;
+
 		init_lock();
 #ifdef USE_AF
 		af::setDevice(0);
@@ -482,14 +645,14 @@ public:
 
 	// write parameters to stream/file
 	// note that this does not persist intermediate training information that could be needed to 'pickup where you left off'
-	bool write(std::ofstream ofs, bool binary = false, bool final = false)
+	bool write(std::ofstream& ofs, bool binary = false, bool final = false)
 	{
 		// save layers
 		int layer_cnt = (int)layer_sets[MAIN_LAYER_SET].size();
 //		int ignore_cnt = 0;
 //		for (int j = 0; j<(int)layer_sets[0].size(); j++)
 //			if (dynamic_cast<dropout_layer*> (layer_sets[0][j]) != NULL)  ignore_cnt++;
-
+		ofs<<"mojo01" << std::endl;
 		ofs<<(int)(layer_cnt)<<std::endl;
 		
 		for(int j=0; j<(int)layer_sets[0].size(); j++)
@@ -542,26 +705,72 @@ public:
 		
 		return true;
 	}
-	bool write(std::string &filename, bool binary = false, bool final = false) { return write(std::ofstream(filename.c_str(), std::ios::binary), binary, final); }//, std::ofstream::binary);
-	bool write(const char *filename, bool binary = false, bool final = false) { return write(filename, binary, final); }
+	bool write(std::string &filename, bool binary = false, bool final = false) { 
+		std::ofstream temp(filename.c_str(), std::ios::binary);
+		return write(temp, binary, final);
+	}//, std::ofstream::binary);
+	bool write(const char *filename, bool binary = false, bool final = false) {return write(filename, binary, final); }
 
 	// read network from a file/stream
+	std::string getcleanline(std::istream &ifs)
+	{
+		std::string s;
+		while (s.empty())
+		{
+			getline(ifs, s); // get version
+			replace_str(s, "\r", "");
+			if (ifs.eof()) break;
+		}
+		return s;
+	}
+	
 	bool read(std::istream &ifs)
 	{
 		if(!ifs.good()) return false;
-		// read layer def
-		int layer_count;
-		ifs>>layer_count;
-
 		std::string s;
-		getline(ifs,s); // get endline
+		s = getcleanline(ifs);
+		int layer_count;
+		int version = 0;
+		if (s.compare("mojo01")==0)
+		{
+			ifs >> layer_count;
+			ifs.ignore();
+			//getline(ifs, s); // get endline
+			version = 1;
+		}
+		else if (s.compare("mojo:") == 0)
+		{
+			version = -1;
+			int cnt = 1;
+
+			while (!ifs.eof())
+			{
+				s = getcleanline(ifs);
+				if (s.empty()) continue;
+				push_back(int2str(cnt).c_str(), s.c_str());
+				cnt++;
+			}
+			connect_all();
+
+			// copies batch=0 stuff to other batches
+			sync_layer_sets();
+			return true;
+		}
+		else
+			layer_count = atoi(s.c_str());
+
+		// read layer def
+		//ifs>>layer_count;
+
 		std::string layer_name;
 		std::string layer_def;
 		for (auto i=0; i<layer_count; i++)
 		{
-			getline(ifs,layer_name);
-			replace_str(layer_name, "\r", "");
-			getline(ifs,layer_def);
+			layer_name = getcleanline(ifs);
+			//getline(ifs,layer_name);
+			//replace_str(layer_name, "\r", "");
+			//getline(ifs,layer_def);
+			layer_def = getcleanline(ifs);
 			push_back(layer_name.c_str(),layer_def.c_str());
 		}
 
@@ -574,10 +783,8 @@ public:
 		std::string layer_name2;
 		for (auto i=0; i<graph_count; i++)
 		{
-			getline(ifs,layer_name1);
-			replace_str(layer_name1, "\r", "");
-			getline(ifs,layer_name2);
-			replace_str(layer_name2, "\r", "");
+			layer_name1= getcleanline(ifs);
+			layer_name2 = getcleanline(ifs);
 			connect(layer_name1.c_str(),layer_name2.c_str());
 		}
 
@@ -586,7 +793,7 @@ public:
 		getline(ifs,s); // get endline
 
 		// binary version to save space if needed
-		if(binary)
+		if(binary==1)
 		{
 			for(int j=0; j<(int)layer_sets[MAIN_LAYER_SET].size(); j++)
 				if (layer_sets[MAIN_LAYER_SET][j]->use_bias())
@@ -601,7 +808,7 @@ public:
 				}
 			}
 		}
-		else // text version
+		else if(binary==0)// text version
 		{
 			// read bias
 			for(int j=0; j<layer_count; j++)
@@ -609,7 +816,7 @@ public:
 				if (layer_sets[MAIN_LAYER_SET][j]->use_bias())
 				{
 					for (int k = 0; k < layer_sets[MAIN_LAYER_SET][j]->bias.size(); k++)  ifs >> layer_sets[MAIN_LAYER_SET][j]->bias.x[k];
-					getline(ifs, s); // get endline
+					ifs.ignore();// getline(ifs, s); // get endline
 				}
 			}
 
@@ -619,10 +826,11 @@ public:
 				if (W[j])
 				{
 					for (int i = 0; i < W[j]->size(); i++) ifs >> W[j]->x[i];
-					getline(ifs, s); // get endline
+					ifs.ignore(); //getline(ifs, s); // get endline
 				}
 			}
 		}
+	
 		// copies batch=0 stuff to other batches
 		sync_layer_sets();
 
@@ -786,6 +994,33 @@ public:
 // ===========================================================================
 // training part
 // ===========================================================================
+
+	void set_random_augmentation(int translate_x, int translate_y,
+		int flip_h, int flip_v, mojo::pad_type padding = mojo::pad_type::edge)
+	{
+		use_augmentation = 1;
+		augment_x = translate_x;
+		augment_y = translate_y;
+		augment_h_flip = flip_h;
+		augment_v_flip = flip_v;
+		augment_pad = padding;
+		augment_theta = 0;
+		augment_scale = 0;
+
+	}
+	void set_random_augmentation(int translate_x, int translate_y,
+		int flip_h, int flip_v, float rotation_deg, float scale, mojo::pad_type padding = mojo::pad_type::edge)
+	{
+		use_augmentation = 2;
+		augment_x = translate_x;
+		augment_y = translate_y;
+		augment_h_flip = flip_h;
+		augment_v_flip = flip_v;
+		augment_pad = padding;
+		augment_theta = rotation_deg;
+		augment_scale = scale;
+
+	}
 
 	// call before starting training for current epoch
 	void start_epoch(std::string loss_function="mse")
@@ -965,6 +1200,7 @@ public:
 	// after starting epoch, call this to train against a class label
 	// label_index must be 0 to out_size()-1
 	// for thread safety, you must pass in the thread_index if calling from different threads
+
 	bool train_class(float *in, int label_index, int _thread_number = -1)
 	{
 		if (_solver == NULL) bail("set solver");
@@ -973,13 +1209,43 @@ public:
 
 		const int thread_number = _thread_number;
 
+		float *input = in;
+		mojo::matrix augmented_input;
+		if (use_augmentation > 0)
+		{
+			//augment_h_flip = flip_h;
+			//augment_v_flip = flip_v;
+			// copy input to matrix type
+			mojo::matrix m(layer_sets[thread_number][0]->node.cols, layer_sets[thread_number][0]->node.rows, layer_sets[thread_number][0]->node.chans, in);
+#if defined(MOJO_CV2) || defined(MOJO_CV3)
+			if (augment_theta > 0 || augment_scale > 0)
+			{
+				float s = ((float)(rand() % 101) / 50.f - 1.f)*augment_scale;
+				float t = ((float)(rand() % 101) / 50.f - 1.f)*augment_theta;
+				m = transform(m, m.cols / 2, m.rows / 2, m.cols, t, 1+s);
+			}
+#endif
+			if (augment_h_flip)
+				if ((rand() % 2) == 0)
+					m = m.flip_cols();
+			if (augment_v_flip)
+				if ((rand() % 2) == 0)
+					m = m.flip_rows();
+			augmented_input = m.shift((rand() % (augment_x * 2 + 1)) - augment_x, (rand() % (augment_y * 2 + 1)) - augment_y, augment_pad);
+			
+			input = augmented_input.x;
+		}
+	
+
+
+
 		// get next free mini_batch slot
 		// this is tied to the current state of the model
 		int my_batch_index = reserve_next_batch();
 		// out of data or an error if index is negative
 		if (my_batch_index < 0) return false;
 		// run through forward to get nodes activated
-		forward(in, thread_number, 1);  
+		forward(input, thread_number, 1);
 
 		// set all deltas to zero
 		__for__(auto layer __in__ layer_sets[thread_number]) layer->delta.fill(0.f);
