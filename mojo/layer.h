@@ -136,7 +136,7 @@ class input_layer : public base_layer
 public:
 	input_layer(const char *layer_name, int _w, int _h=1, int _c=1) : base_layer(layer_name,_w,_h,_c) {p_act=new_activation_function("identity"); }
 	virtual  ~input_layer(){}
-	virtual void activate_nodes() { node.reset_empty_chans(); }
+	virtual void activate_nodes() { /*node.reset_empty_chans(); */}
 	virtual void distribute_delta(base_layer &top, const matrix &w, const int train =1) {}
 	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train =1) {}
 	virtual void accumulate_signal(const base_layer &top_node, const matrix &w, const int train =0) {}
@@ -340,8 +340,8 @@ public:
 						}
 
 					}
-					if (max<1e-5) node.empty_chan[k] = 1;
-					else node.empty_chan[k] = 0;
+					//if (max<1e-5) node.empty_chan[k] = 1;
+					//else node.empty_chan[k] = 0;
 
 					node.x[output_index] = top_node[max_i];
 					p_map[output_index] = max_i;
@@ -425,8 +425,8 @@ public:
 						}
 					}
 
-					if(max<1e-5) node.empty_chan[k] = 1;
-					else node.empty_chan[k] = 0;
+//					if(max<1e-5) node.empty_chan[k] = 1;
+	//				else node.empty_chan[k] = 0;
 
 					int r = rand() % 100;
 					float denom = (max + max2);
@@ -464,7 +464,8 @@ public:
 class dropout_layer : public base_layer
 {
 	float _dropout_rate;
-	matrix drop_mask;
+	//std::map<const base_layer*, matrix>  drop_mask;
+	matrix  drop_mask;
 public:
 	dropout_layer(const char *layer_name, float dropout_rate) : base_layer(layer_name, 1)
 	{
@@ -485,6 +486,7 @@ public:
 	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train = 1) {}
 	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
 	{
+//		drop_mask[&top]=matrix(top.node.cols, top.node.rows, top.node.chans);
 		resize(top.node.cols, top.node.rows, top.node.chans);
 		return base_layer::new_connection(top, weight_mat_index);
 	}
@@ -498,25 +500,25 @@ public:
 		const float *top_node = top.node.x;
 		const int size = top.node.chans*top.node.rows*top.node.cols;
 		memcpy(node.x, top_node, sizeof(float)*size);
-		memcpy(node.empty_chan, top.node.empty_chan, top.node.chans);
-
+//		matrix *pmask = &(drop_mask[&top]);
+		matrix *pmask = &drop_mask;
 		if (train)
 		{
-			drop_mask.fill(1);
+			pmask->fill(1);
 			int k;
 			for (k = 0; k < size; k+=4) // do 4 at a time
 			{
 				int r = rand();
-				if ((r % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k] = 0.0;  node.x[k] *= 0.5f; };
-				if (((r >> 1) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 1] = 0.0; node.x[k + 1] *= 0.5f; }
-				if (((r >> 2) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 2] = 0.0;  node.x[k + 2] *= 0.5f; }
-				if (((r >> 3) % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k + 3] = 0.0;  node.x[k + 3] *= 0.5f; }
+				if ((r % 100) <= (_dropout_rate*100.f)) { pmask->x[k] = 0.0;  node.x[k] *= 0.5f; };
+				if (((r >> 1) % 100) <= (_dropout_rate*100.f)) { pmask->x[k + 1] = 0.0; node.x[k + 1] *= 0.5f; }
+				if (((r >> 2) % 100) <= (_dropout_rate*100.f)) { pmask->x[k + 2] = 0.0;  node.x[k + 2] *= 0.5f; }
+				if (((r >> 3) % 100) <= (_dropout_rate*100.f)) { pmask->x[k + 3] = 0.0;  node.x[k + 3] *= 0.5f; }
 			}
 			int k2 = k - 4;
 			for (k = k2; k < size; k++)
 			{
 				int r = rand();
-				if ((r % 100) <= (_dropout_rate*100.f)) { drop_mask.x[k] = 0.0;  node.x[k] *= 0.5f; };
+				if ((r % 100) <= (_dropout_rate*100.f)) { pmask->x[k] = 0.0;  node.x[k] *= 0.5f; };
 			}
 		}
 	}
@@ -524,6 +526,7 @@ public:
 
 	virtual void distribute_delta(base_layer &top, const matrix &w, const int train = 1)
 	{
+//		delta *= drop_mask[&top];
 		delta *= drop_mask;
 		top.delta += delta;
 	}
@@ -876,11 +879,7 @@ public:
 
 			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 			{
-				if (top.node.empty_chan[k])
-				{
-				//	continue;
-				}
-
+	
 				unwrap_aligned_5x5(img_ptr.x, &top.node.x[k*kstep], jstep, stride);
 
 				for (int map = 0; map < map_cnt; map++) // how many maps  maps= node.chans
@@ -938,7 +937,7 @@ public:
 		}
 		else if (kernel_rows == 1)
 		{
-#ifndef MOJO_SSE3
+#ifndef BROKE_MOJO_SSE3
 			for (int k = 0; k<top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
 			{
 				const float *_top_node;
@@ -963,7 +962,7 @@ public:
 					const float cw = w.x[(map + k*maps)*kernel_size];
 					__m128  b, c1;
 					 b = _mm_set_ps(cw, cw, cw, cw);
-					 for (int j = 0; j < kstep; j += 4)
+					 for (int j = 0; j < outsize; j += 4)
 					{
 						c1 = _mm_mul_ps(_mm_load_ps(img_ptr.x + j), b);
 						_mm_store_ps(imgout_ptr.x+j,c1);
@@ -1100,6 +1099,29 @@ public:
 
 			}
 //			return;
+		}
+		else if (kernel_cols == 1)
+		{
+			for (int j = 0; j<top.delta.rows; j += stride) // input h 
+			{
+				for (int i = 0; i<top.delta.cols; i += stride) // intput w
+				{
+					for (int k = 0; k<top.delta.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+					{
+						int td_i = i + (j)*jstep + k*kstep;
+						float *delt = &delta_pad.x[i + (j)*delta_pad.cols + 0*map_size];
+						float *wx = &w.x[(0 + k*maps)*kernel_size];
+						for (int map = 0; map<maps; map++) // how many maps  maps= node.chans
+						{
+							top.delta.x[td_i] += (*delt)  * (*wx);
+							delt += map_size;
+							wx += kernel_size;
+
+						} // all input chans
+						  //output_index++;	
+					}
+				}
+			} //y
 		}
 		else
 		{
@@ -1623,15 +1645,25 @@ class concatenation_layer : public base_layer
 	std::map<const base_layer*, int> layer_to_channel;  // name-to-index of layer for layer management
 
 	int _maps;
+	mojo::pad_type _pad_type;
 public:
-	concatenation_layer(const char *layer_name, int _w, int _h) : base_layer(layer_name, _w, _h)
+	concatenation_layer(const char *layer_name, int _w, int _h, mojo::pad_type p= mojo::pad_type::zero) : base_layer(layer_name, _w, _h)
 	{
 		_maps = 0;
+		_pad_type = p;
 		_has_weights = false;
 		p_act = NULL;// new_activation_function("identity");
 	}
 	virtual  ~concatenation_layer() {}
-	virtual std::string get_config_string() { std::string str = "concatenate " + int2str(node.cols) +" "+int2str(node.rows) +"\n"; return str; }
+	virtual std::string get_config_string() 
+	{ 
+		std::string str_p = " zero\n";
+		if (_pad_type == mojo::pad_type::edge) str_p = " edge\n";
+		else if (_pad_type == mojo::pad_type::median_edge) str_p = " median_edge\n";
+
+		std::string str = "concatenate " + int2str(node.cols) + str_p;
+		return str; 
+	}
 	// this connection work won't work with multiple top layers (yet)
 	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
 	{
@@ -1668,7 +1700,7 @@ public:
 
 		if (padx+ padx_ex > 0 || pady+ pady_ex > 0 )
 		{
-			matrix m = top.node.pad(padx, pady, padx+ padx_ex, pady+pady_ex, 0);
+			matrix m = top.node.pad(padx, pady, padx+ padx_ex, pady+pady_ex, _pad_type);
 			memcpy(node.x + size*map_offset, m.x, sizeof(float)*m.size());
 		}
 		else if((node.cols == top.node.cols) && (node.rows == top.node.rows))
@@ -1738,6 +1770,12 @@ base_layer *new_layer(const char *layer_name, const char *config)
 		iss>>c; iss>>act; 
 		return new fully_connected_layer(layer_name, c, new_activation_function(act));
 	}
+	else if (str.compare("softmax") == 0)
+	{
+		//std::string act;
+		iss >> c; //iss >> act;
+		return new fully_connected_layer(layer_name, c, new_activation_function("softmax"));
+	}
 	else if(str.compare("max_pool")==0)
 	{
 		iss >> c;  iss >> s;
@@ -1792,8 +1830,15 @@ base_layer *new_layer(const char *layer_name, const char *config)
 	}
 	else if((str.compare("resize")==0) || (str.compare("concatenate") == 0))
 	{
-		iss>>w;  
-		return new concatenation_layer(layer_name, w,w);
+		std::string pad;
+		iss>>w; 
+		iss >> pad;
+		mojo::pad_type p = mojo::pad_type::zero;
+		if (pad.compare("median") == 0) p = mojo::pad_type::median_edge;
+		else if (pad.compare("median_edge") == 0) p = mojo::pad_type::median_edge;
+		else if (pad.compare("edge") == 0) p = mojo::pad_type::edge;
+
+		return new concatenation_layer(layer_name, w,w, p);
 	}	
 
 	return NULL;
