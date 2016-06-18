@@ -144,15 +144,21 @@ bool parse_mnist_images(const std::string& image_file,
 bool parse_test_data(std::string &data_path, std::vector<std::vector<float>> &test_images, std::vector<int> &test_labels, 
 	float min_val=-1.f, float max_val=1.f, int padx=0, int pady=0)
 {
-	if(!parse_mnist_images(data_path+"/t10k-images.idx3-ubyte", &test_images, min_val, max_val, padx, pady)) return false;
-	if(!parse_mnist_labels(data_path+"/t10k-labels.idx1-ubyte", &test_labels)) return false;
+	if(!parse_mnist_images(data_path+"/t10k-images.idx3-ubyte", &test_images, min_val, max_val, padx, pady)) 
+		if (!parse_mnist_images(data_path + "/t10k-images-idx3-ubyte", &test_images, min_val, max_val, padx, pady))
+			return false;
+	if(!parse_mnist_labels(data_path+"/t10k-labels.idx1-ubyte", &test_labels)) 
+		if (!parse_mnist_labels(data_path + "/t10k-labels-idx1-ubyte", &test_labels)) return false;
 	return true;
 }
 bool parse_train_data(std::string &data_path, std::vector<std::vector<float>> &train_images, std::vector<int> &train_labels, 
 	float min_val=-1.f, float max_val=1.f, int padx=0, int pady=0)
 {
-	if(!parse_mnist_images(data_path+"/train-images.idx3-ubyte", &train_images, min_val, max_val, padx, pady)) return false;
-	if(!parse_mnist_labels(data_path+"/train-labels.idx1-ubyte", &train_labels)) return false;
+	if(!parse_mnist_images(data_path+"/train-images.idx3-ubyte", &train_images, min_val, max_val, padx, pady))
+		if (!parse_mnist_images(data_path + "/train-images-idx3-ubyte", &train_images, min_val, max_val, padx, pady))
+			return false;
+	if(!parse_mnist_labels(data_path+"/train-labels.idx1-ubyte", &train_labels))
+		if (!parse_mnist_labels(data_path + "/train-labels-idx1-ubyte", &train_labels)) return false;
 	return true;
 }
 }
