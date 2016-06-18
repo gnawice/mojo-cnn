@@ -34,10 +34,12 @@
 #include <string>
 #include <cstdlib>
 #include <random>
-
+#include <algorithm> 
 
 namespace mojo
 {
+
+enum pad_type { zero = 0, edge = 1, median_edge = 2 };
 
 inline float dot(const float *x1, const float *x2, const int size)
 {
@@ -426,6 +428,7 @@ inline float unwrap_2d_dot_rot180(const float *x1, const float *x2, const int si
 // matrix class ---------------------------------------------------
 // should use opencv if available
 //
+
 class matrix
 {
 	int _size;
@@ -438,41 +441,48 @@ public:
 	std::string _name;
 	int cols, rows, chans;
 	float *x;
-	unsigned char *empty_chan;
+	//unsigned char *empty_chan;
 
-	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), x(NULL), empty_chan(NULL){}
+	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), x(NULL)/*, empty_chan(NULL)*/{}
 
 	matrix( int _w, int _h, int _c=1, const float *data=NULL): cols(_w), rows(_h), chans(_c) 
 	{
 		_size=cols*rows*chans; _capacity=_size; x = new_x(_size); 
 		if(data!=NULL) memcpy(x,data,_size*sizeof(float));
 		
-		empty_chan = new unsigned char[chans];
-		memset(empty_chan, 0, chans);
+//		empty_chan = new unsigned char[chans];
+//		memset(empty_chan, 0, chans);
 	}
 
-	inline void reset_empty_chans(){ memset(empty_chan, 0, chans); }
+	//inline void reset_empty_chans(){ memset(empty_chan, 0, chans); }
 
 	// copy constructor - deep copy
-	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); empty_chan = new unsigned char[chans]; memcpy(empty_chan, m.empty_chan, chans);} // { v=m.v; x=(float*)v.data();}
+	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); /*empty_chan = new unsigned char[chans]; memcpy(empty_chan, m.empty_chan, chans);*/} // { v=m.v; x=(float*)v.data();}
 	// copy and pad constructor
-	matrix( const matrix &m, int pad_cols, int pad_rows) : cols(m.cols+2*pad_cols), rows(m.rows+2*pad_rows), chans(m.chans)
+	matrix( const matrix &m, int pad_cols, int pad_rows, mojo::pad_type padding= mojo::pad_type::zero) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)  
 	{
+		x = new_x(_size); memcpy(x, m.x, sizeof(float)*_size);
+		*this = pad(pad_cols, pad_rows, padding);
+/*
 		_size = cols*rows*chans;
 		_capacity = _size;
 		x = new_x(_size); 
-		empty_chan = new unsigned char[chans];
-		memcpy(empty_chan, m.empty_chan, chans);
+	//	*this = m;
+
+		*
+		
+//		empty_chan = new unsigned char[chans];
+//		memcpy(empty_chan, m.empty_chan, chans);
 		fill(0);
 		for(int c=0; c<m.chans; c++)
 		for(int j=0; j<m.rows; j++)
 		{
 			memcpy(x+pad_cols+(pad_rows+j)*cols+c*cols*rows,m.x+j*m.cols +c*m.cols*m.rows,sizeof(float)*m.cols);
 		}
-		 
+	*/	 
 	} // { v=m.v; x=(float*)v.data();}
 
-	~matrix() { if (x) delete_x(); if (empty_chan) delete[] empty_chan; }
+	~matrix() { if (x) delete_x(); /*if (empty_chan) delete[] empty_chan; */}
 	
 	matrix get_chans(int start_channel, int num_chans=1) const
 	{
@@ -480,47 +490,74 @@ public:
 	}
 
 
-	// if edge_pad==0, then the padded area is just 0. Otherwise it fills with edge pixel colors
-	matrix pad(int dx, int dy, int edge_pad = 0) const
+	// if edge_pad==0, then the padded area is just 0. 
+	// if edge_pad==1 it fills with edge pixel colors
+	// if edge_pad==2 it fills with median edge pixel color
+	matrix pad(int dx, int dy, mojo::pad_type edge_pad = mojo::pad_type::zero) const
 	{
 		return pad(dx, dy, dx, dy, edge_pad);
 	}
-	matrix pad(int dx, int dy, int dx_right, int dy_bottom, int edge_pad=0) const
+	matrix pad(int dx, int dy, int dx_right, int dy_bottom, mojo::pad_type edge_pad = mojo::pad_type::zero) const
 	{
 		matrix v(cols+dx+dx_right,rows+dy+dy_bottom,chans);
 		v.fill(0);
+	
 		//float *new_x = new float[chans*w*h]; 
 		for(int k=0; k<chans; k++)
 		{
-			int v_chan_offset=k*v.rows*v.cols;
-			int chan_offset=k*cols*rows;
+			const int v_chan_offset=k*v.rows*v.cols;
+			const int chan_offset=k*cols*rows;
+			// find median color of perimeter
+			float median = 0.f;
+			if (edge_pad == mojo::pad_type::median_edge)
+			{
+				int perimeter = 2 * (cols + rows - 2);
+				std::vector<float> d(perimeter);
+				for (int i = 0; i < cols; i++)
+				{
+					d[i] = x[i+ chan_offset]; d[i + cols] = x[i + cols*(rows - 1)+ chan_offset];
+				}
+				for (int i = 1; i < (rows - 1); i++)
+				{
+					d[i + cols * 2] = x[cols*i+ chan_offset];
+					// file from back so i dont need to cal index
+					d[perimeter - i] = x[cols - 1 + cols*i+ chan_offset];
+				}
+
+				std::nth_element(d.begin(), d.begin() + perimeter / 2, d.end());
+				median = d[perimeter / 2];
+				//for (int i = 0; i < v.rows*v.cols; i++) v.x[v_chan_offset + i] = solid_fill;
+			}
+
 			for(int j=0; j<rows; j++)
 			{
 				memcpy(&v.x[dx+(j+dy)*v.cols+v_chan_offset], &x[j*cols+chan_offset], sizeof(float)*cols);
-				if(edge_pad)
+				if(edge_pad== mojo::pad_type::edge)
 				{
 					// do left/right side
-					for(int i=0; i<dx; i++)
-					{
-						v.x[i+(j+dy)*v.cols+v_chan_offset]=x[0+j*cols+chan_offset];
-					}
-					for (int i = 0; i<dx_right; i++)
-					{
-						v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = x[(cols - 1) + j*cols + chan_offset];
-					}
+					for(int i=0; i<dx; i++) v.x[i+(j+dy)*v.cols+v_chan_offset]=x[0+j*cols+chan_offset];
+					for (int i = 0; i<dx_right; i++) v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = x[(cols - 1) + j*cols + chan_offset];
+				}
+				else if (edge_pad == mojo::pad_type::median_edge)
+				{
+					for (int i = 0; i < dx; i++) v.x[i + (j + dy)*v.cols + v_chan_offset] = median;
+					for (int i = 0; i < dx_right; i++) v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = median;
 				}
 			}
 			// top bottom pad
-			if(edge_pad)
+			if(edge_pad== mojo::pad_type::edge)
 			{
-				for(int j=0; j<dy; j++)
-				{
-					memcpy(&v.x[(j)*v.cols+v_chan_offset],&v.x[(dy)*v.cols+v_chan_offset], sizeof(float)*v.cols);
-				}
-				for (int j = 0; j<dy_bottom; j++)
-				{
-					memcpy(&v.x[(j + dy + rows)*v.cols + v_chan_offset], &v.x[(rows - 1 + dy)*v.cols + v_chan_offset], sizeof(float)*v.cols);
-				}
+				for(int j=0; j<dy; j++)	memcpy(&v.x[(j)*v.cols+v_chan_offset],&v.x[(dy)*v.cols+v_chan_offset], sizeof(float)*v.cols);
+				for (int j = 0; j<dy_bottom; j++) memcpy(&v.x[(j + dy + rows)*v.cols + v_chan_offset], &v.x[(rows - 1 + dy)*v.cols + v_chan_offset], sizeof(float)*v.cols);
+			}
+			if (edge_pad == mojo::pad_type::median_edge)
+			{
+				for (int j = 0; j<dy; j++)	
+					for (int i = 0; i<v.cols; i++) 
+						v.x[i + j*v.cols + v_chan_offset] = median;
+				for (int j = 0; j<dy_bottom; j++) 
+					for (int i = 0; i<v.cols; i++) 
+						v.x[i + (j + dy + rows)*v.cols + v_chan_offset] = median;
 			}
 		}
 
@@ -541,7 +578,7 @@ public:
 		return v;
 	}
 
-	mojo::matrix shift(int dx, int dy, int edge_pad)
+	mojo::matrix shift(int dx, int dy, mojo::pad_type edge_pad=mojo::pad_type::zero)
 	{
 		int orig_cols=cols;
 		int orig_rows=rows;
@@ -553,13 +590,23 @@ public:
 		return shifted.crop(off_x-dx, off_y-dy,orig_cols,orig_rows);
 	}
 
-	mojo::matrix flip_cols ()
+	mojo::matrix flip_cols()
 	{
 		mojo::matrix v(cols,rows,chans);
 		for(int k=0; k<chans; k++)
 			for(int j=0; j<rows; j++)
 				for(int i=0; i<cols; i++)
 					v.x[i+j*cols+k*cols*rows]=x[(cols-i-1)+j*cols+k*cols*rows];
+
+		return v;
+	}
+	mojo::matrix flip_rows()
+	{
+		mojo::matrix v(cols, rows, chans);
+		
+		for (int k = 0; k<chans; k++)
+			for (int j = 0; j<rows; j++)
+				memcpy(&v.x[(rows-1-j)*cols + k*cols*rows],&x[j*cols + k*cols*rows], cols*sizeof(float));
 
 		return v;
 	}
@@ -632,7 +679,7 @@ public:
 	{
 		resize(m.cols, m.rows, m.chans);
 		memcpy(x,m.x,sizeof(float)*_size);
-		memcpy(empty_chan, m.empty_chan, chans);
+//		memcpy(empty_chan, m.empty_chan, chans);
 		return *this;
 	}
 
@@ -644,12 +691,12 @@ public:
 		{ 
 			if(_capacity>0) delete_x(); _size = s; _capacity=_size; x = new_x(_size);
 		}
-		if (_c > chans)
+/*		if (_c > chans)
 		{
 			if (empty_chan) delete[] empty_chan;
 			empty_chan = new unsigned char[_c];
 		}
-		cols=_w; rows=_h; chans=_c; _size=s;
+	*/	cols=_w; rows=_h; chans=_c; _size=s;
 	} 
 	
 	// dot vector to 2d mat
