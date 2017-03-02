@@ -1,12 +1,12 @@
 Pre-trained models for mojo cnn:
 
-+ **vgg16.mojo:** VGG 16 layer model converted from mxnet model.  This model is a pretrained model on ILSVRC2012 dataset. This model is able to achieve 71.0% Top-1 Accuracy and 89.8% Top-5 accuracy on ILSVRC2012-Validation Set. Details about the network architecture can be found in the following arXiv paper:
++ **vgg16.mojo:** VGG 16 layer model converted from mxnet model.  This model is a pretrained model on ILSVRC2012 dataset. It is able to achieve 71.0% Top-1 Accuracy and 89.8% Top-5 accuracy on ILSVRC2012-Validation Set. Details about the network architecture can be found in the following arXiv paper:
   ```
 Very Deep Convolutional Networks for Large-Scale Image Recognition
 K. Simonyan, A. Zisserman
 arXiv:1409.1556
   ```
-Please cite the paper if you use the models.    
+Please cite the paper if you use the model.    
 [**Download vgg16.mojo**](https://drive.google.com/file/d/0B5Dx9ePCIXQAZU51T0MyQXpvOXc/view?usp=sharing)
 
 + **mnist_deepcnet.mojo:** MNIST model 99.75% accuracy (0.25% error). Random +/-2 pixel translations on training data. No elastic distortions. Four convolution layers.  Each deepcnet layer is a 2x2 convolution followed by 2x2 max pool.  It took a little more than 2 hours to get to this accuracy in original mojo release. 
