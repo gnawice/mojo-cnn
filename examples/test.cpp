@@ -41,7 +41,6 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#define MOJO_CV3
 #include <mojo.h>
 
 //*
@@ -66,16 +65,16 @@ void test(mojo::network &cnn, const std::vector<std::vector<float>> &test_images
 	mojo::progress progress((int)test_images.size(), "  testing : ");
 
 	const int record_cnt= (int)test_images.size();
-	for(int k=0; k<record_cnt; k++)
+
+	// when MOJO_OMP is defined, we use standard "omp parallel for" loop, 
+	// the number of threads determined by network.enable_external_threads() call
+	#pragma omp parallel for reduction(+:correct_predictions) schedule(dynamic)  // dynamic schedule just helps the progress class to work correcly
+	for(int k=0; k<record_cnt; k++) 
 	{
 		// predict_class returnes the output index of the highest response
 		const int prediction=cnn.predict_class(test_images[k].data());
 		if(prediction ==test_labels[k]) correct_predictions++;
 		if(k%1000==0) progress.draw_progress(k);
-//#ifdef MOJO_CV3
-//		mojo::show(mojo::draw_cnn_state(cnn,"C1",mojo::voodoo), 4, "State");
-//#endif
-
 	}
 	float dt = progress.elapsed_seconds();
 	std::cout << "  test time: " << dt << " seconds                                          "<< std::endl;
@@ -97,19 +96,21 @@ int main()
 
 	// == setup the network  
 	mojo::network cnn; 
+
+	// here we need to prepare mojo cnn to store data from multiple threads
+	// !! enable_external_threads must be set prior to loading or creating a model !!
+	cnn.enable_external_threads(); 
+
 	// load model
 	if(!cnn.read(model_file)) {std::cerr << "error: could not read model.\n"; return 1;}
 	std::cout << "Mojo CNN Configuration:" << std::endl;
-	std::cout << cnn.get_configuration() << std::endl;
-
-//#ifdef MOJO_CV3
-//	mojo::show(mojo::draw_cnn_weights(cnn, mojo::mojo_palette::voodoo,0), 7, "Weights");
-//#endif
+	std::cout << cnn.get_configuration() << std::endl << std::endl;
 
 	// == run the test
 	std::cout << "Testing " << data_name() << ":" << std::endl;
 	// this function will loop through all images, call predict, and print out stats
 	test(cnn, test_images, test_labels);	
+
 	std::cout << std::endl;
 	return 0;
 }

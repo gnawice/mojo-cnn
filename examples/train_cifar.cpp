@@ -39,14 +39,13 @@
 #include <stdio.h>
 #include <tchar.h>
 
-//#define MOJO_CV3
-#define MOJO_OMP
+#define MOJO_CV3
 #include <mojo.h>  
 #include <util.h>
 #include "cifar_parser.h"
 
-const int mini_batch_size = 24;
-const float initial_learning_rate = 0.02f;
+const int mini_batch_size = 16;
+const float initial_learning_rate = 0.05f;
 std::string solver = "adam";
 std::string data_path = "../data/cifar-10-batches-bin/";
 using namespace cifar;
@@ -61,8 +60,7 @@ float test(mojo::network &cnn, const std::vector<std::vector<float>> &test_image
 	int correct_predictions = 0;
 	const int record_cnt = (int)test_images.size();
 
-#pragma omp parallel
-#pragma omp for reduction(+:correct_predictions) schedule(dynamic)
+	#pragma omp parallel for reduction(+:correct_predictions) schedule(dynamic)
 	for (int k = 0; k<record_cnt; k++)
 	{
 		const int prediction = cnn.predict_class(test_images[k].data());
@@ -115,23 +113,21 @@ int main()
 	// == setup the network  - when you train you must specify an optimizer ("sgd", "rmsprop", "adagrad", "adam")
 	mojo::network cnn(solver.c_str());
 	// !! the threading must be enabled with thread count prior to loading or creating a model !!
-	cnn.enable_omp();
+	cnn.enable_external_threads();
 	cnn.set_mini_batch_size(mini_batch_size);
 	cnn.set_smart_training(true); // automate training
 	cnn.set_learning_rate(initial_learning_rate);
+	// augment data random shifts only +/-2 pix
+	cnn.set_random_augmentation(2,2,0,0,mojo::edge);
 
 	// configure network 
 	cnn.push_back("I1", "input 32 32 3");				// CIFAR is 32x32x3
-	cnn.push_back("C1", "convolution 5 32 1 elu");		// 32-5+1=28
-	cnn.push_back("P1", "semi_stochastic_pool 2 2");		// 14
-	cnn.push_back("C2", "convolution 5 32 1 elu");		// 10
-	cnn.push_back("P2", "semi_stochastic_pool 2 2");		// 5
-	cnn.push_back("C3", "convolution 5 64 1 elu");		// 1	
-	cnn.push_back("DO1", "dropout 0.2");
-	cnn.push_back("FC1", "fully_connected 100 elu");	// fully connected 100 nodes, ReLU 
-	cnn.push_back("DO2", "dropout 0.4");
-	cnn.push_back("FC2", "fully_connected 10 tanh");
-
+	cnn.push_back("C1", "convolution 3 16 1 elu");		// 32-3+1=30
+	cnn.push_back("P1", "semi_stochastic_pool 3 3");	// 10x10 out
+	cnn.push_back("C2", "convolution 3 64 1 elu");		// 8x8 out
+	cnn.push_back("P2", "semi_stochastic_pool 4 4");	// 2x2 out
+	cnn.push_back("FC2", "softmax 10");
+	
 	// connect all the layers. Call connect() manually for all layer connections if you need more exotic networks.
 	cnn.connect_all();
 	std::cout << "==  Network Configuration  ====================================================" << std::endl;
@@ -154,15 +150,14 @@ int main()
 
 		cnn.start_epoch("cross_entropy");
 
-#pragma omp parallel 
-#pragma omp for schedule(dynamic)
+		#pragma omp parallel for schedule(dynamic)
 		for (int k = 0; k<train_samples; k++)
 		{
 			// augment data random shifts only
-			mojo::matrix m(32, 32, 3, train_images[k].data());
-			if (rand() % 2 == 0) m = m.flip_cols();
-			m = m.shift((rand() % 5) - 2, (rand() % 5) - 2, 1);
-			cnn.train_class(m.x, train_labels[k]);
+			//mojo::matrix m(32, 32, 3, train_images[k].data());
+			//if (rand() % 2 == 0) m = m.flip_cols();
+			//m = m.shift((rand() % 5) - 2, (rand() % 5) - 2, mojo::edge);
+			cnn.train_class(train_images[k].data(), train_labels[k]);
 			if (k % 1000 == 0) progress.draw_progress(k);
 		}
 		//		mojo::hide();

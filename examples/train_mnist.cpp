@@ -39,19 +39,18 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#define MOJO_OMP
-//#define MOJO_CV3
+#define MOJO_CV3
 #include <mojo.h>  
 #include <util.h>
 #include "mnist_parser.h"
 
 const int mini_batch_size = 24;
-const float initial_learning_rate = 0.02f;
+const float initial_learning_rate = 0.04f;
 std::string solver = "adam";
 std::string data_path="../data/mnist/";
 using namespace mnist;
 
-
+// performs validation testing
 float test(mojo::network &cnn, const std::vector<std::vector<float>> &test_images, const std::vector<int> &test_labels)
 {
 	// use progress object for simple timing and status updating
@@ -61,8 +60,7 @@ float test(mojo::network &cnn, const std::vector<std::vector<float>> &test_image
 	int correct_predictions = 0;
 	const int record_cnt = (int)test_images.size();
 
-#pragma omp parallel
-#pragma omp for reduction(+:correct_predictions) schedule(dynamic)
+	#pragma omp parallel for reduction(+:correct_predictions) schedule(dynamic)
 	for (int k = 0; k<record_cnt; k++)
 	{
 		const int prediction = cnn.predict_class(test_images[k].data());
@@ -74,9 +72,10 @@ float test(mojo::network &cnn, const std::vector<std::vector<float>> &test_image
 	return accuracy;
 }
 
+
 int main()
 {
-	// == parse data
+	// ==== parse data
 	// array to hold image data (note that mojo does not require use of std::vector)
 	std::vector<std::vector<float>> test_images;
 	std::vector<int> test_labels;
@@ -87,27 +86,21 @@ int main()
 	if (!parse_test_data(data_path, test_images, test_labels)) { std::cerr << "error: could not parse data.\n"; return 1; }
 	if (!parse_train_data(data_path, train_images, train_labels)) { std::cerr << "error: could not parse data.\n"; return 1; }
 
-	// == setup the network  - when you train you must specify an optimizer ("sgd", "rmsprop", "adagrad", "adam")
+	// ==== setup the network  - when you train you must specify an optimizer ("sgd", "rmsprop", "adagrad", "adam")
 	mojo::network cnn(solver.c_str());
 	// !! the threading must be enabled with thread count prior to loading or creating a model !!
-	cnn.enable_omp();
+	cnn.enable_external_threads();
 	cnn.set_mini_batch_size(mini_batch_size);
 	cnn.set_smart_training(true); // automate training
 	cnn.set_learning_rate(initial_learning_rate);
 	 
-	// configure network 
-	cnn.push_back("I1", "input 28 28 1");			// MNIST is 28x28x1
-	cnn.push_back("C1", "convolution 5 20 1 elu");	// 5x5 kernel, 20 maps. stride 1. out size is 28-5+1=24
+	cnn.push_back("I1", "input 28 28 1");				// MNIST is 28x28x1
+	cnn.push_back("C1", "convolution 5 8 1 elu");		// 5x5 kernel, 20 maps. stride 1. out size is 28-5+1=24
 	cnn.push_back("P1", "semi_stochastic_pool 3 3");	// pool 3x3 blocks. stride 3. outsize is 8
-//	cnn.push_back("D3", "dropout 0.25");
-	cnn.push_back("C2", "convolution 5 200 1 elu");	// 5x5 kernel, 200 maps.  out size is 8-5+1=4
-	cnn.push_back("P2", "semi_stochastic_pool 4 4");	// pool 4x4 blocks. stride 4. outsize is 1 
-//	cnn.push_back("D2", "dropout 0.5");
-// these FC layers don't really seem to be needed
-//	cnn.push_back("FC1", "fully_connected 100 elu");// fully connected 100 nodes 
-//	cnn.push_back("D1", "dropout 0.4");
-	cnn.push_back("FC2", "fully_connected 10 tanh");
-
+	cnn.push_back("C2i", "convolution 1 16 1 elu");		// 1x1 'inceptoin' layer
+	cnn.push_back("C2", "convolution 5 48 1 elu");		// 5x5 kernel, 200 maps.  out size is 8-5+1=4
+	cnn.push_back("P2", "semi_stochastic_pool 2 2");	// pool 2x2 blocks. stride 2. outsize is 2x2
+	cnn.push_back("FC2", "softmax 10");					// 'flatten' of 2x2 input is inferred
 
 	// connect all the layers. Call connect() manually for all layer connections if you need more exotic networks.
 	cnn.connect_all();
@@ -119,6 +112,9 @@ int main()
 	mojo::html_log log;
 	log.set_table_header("epoch\ttest accuracy(%)\testimated accuracy(%)\tepoch time(s)\ttotal time(s)\tlearn rate\tmodel");
 	log.set_note(cnn.get_configuration());
+				
+	// augment data random shifts only
+	cnn.set_random_augmentation(1,1,0,0,mojo::edge);
 
 	// setup timer/progress for overall training
 	mojo::progress overall_progress(-1, "  overall:\t\t");
@@ -129,22 +125,22 @@ int main()
 		overall_progress.draw_header(data_name() + "  Epoch  " + std::to_string((long long)cnn.get_epoch() + 1), true);
 		// setup timer / progress for this one epoch
 		mojo::progress progress(train_samples, "  training:\t\t");
-
+		// set loss function
 		cnn.start_epoch("cross_entropy");
 
-#pragma omp parallel  
-#pragma omp for schedule(dynamic)
+		// manually loop through data. batches are handled internally. if data is to be shuffled, the must be performed externally
+		#pragma omp parallel for schedule(dynamic)  // schedule dynamic to help make progress bar work correctly
 		for (int k = 0; k<train_samples; k++)
 		{
-			// augment data random shifts only
-			mojo::matrix m(28, 28, 1, train_images[k].data());
-			m = m.shift((rand() % 3) - 1, (rand() % 3) - 1, 1);
-			cnn.train_class(m.x, train_labels[k]);
+			cnn.train_class(train_images[k].data(), train_labels[k]);
 			if (k % 1000 == 0) progress.draw_progress(k);
 		}
-#ifdef MOJO_CV3
-		mojo::show(mojo::draw_cnn_weights(cnn), 4, "Weights");
-#endif
+
+		// draw weights of main convolution layers
+		#ifdef MOJO_CV3
+		mojo::show(mojo::draw_cnn_weights(cnn, "C1",mojo::tensorglow), 2 /* scale x 2 */, "C1 Weights");
+		mojo::show(mojo::draw_cnn_weights(cnn, "C2",mojo::tensorglow), 2, "C2 Weights");
+		#endif
 		
 		cnn.end_epoch();
 		float dt = progress.elapsed_seconds();
@@ -161,7 +157,7 @@ int main()
 		std::cout << "  train accuracy:\t"<<train_accuracy<<"% ("<< 100.f - train_accuracy<<"% error)      "<<std::endl;
 		*/
 
-		// == run testing set
+		// ==== run testing set
 		progress.reset((int)test_images.size(), "  testing out-of-sample:\t");
 		float accuracy = test(cnn, test_images, test_labels);
 		std::cout << "  test accuracy:\t" << accuracy << "% (" << 100.f - accuracy << "% error)      " << std::endl;
