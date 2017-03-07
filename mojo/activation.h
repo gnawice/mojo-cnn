@@ -105,69 +105,163 @@ namespace mojo {
 namespace tan_h 
 {
 #ifndef MOJO_LUTS
-	inline float f(float *in, int i, int size, float bias) // this is activation f(x)
+	inline void f(float *in, const int size, const float *bias) // this is activation f(x)
 	{
-		// in[i] += bias;
-        const float ep = std::exp((in[i]+bias));
-        const float em = std::exp(-(in[i] + bias));
-        return (ep - em) / (ep + em);
+		for(int i=0; i<size; i++) 
+		{
+			const float ep = std::exp((in[i]+bias[i]));
+			const float em = std::exp(-(in[i] + bias[i]));
+			in[i]=(ep - em) / (ep + em);
+		}
+    }
+	inline void fc(float *in, const int size, const float bias) // this is activation f(x)
+	{
+		for(int i=0; i<size; i++) 
+		{
+			const float ep = std::exp((in[i]+bias));
+			const float em = std::exp(-(in[i] + bias));
+			in[i]=(ep - em) / (ep + em);
+		}
     }
 #else
-	inline float  f(float *in, int i, int size, float bias) // this is activation f(x)
+	inline void  f(float *in, const int size, const float *bias) // this is activation f(x)
 	{
-		//in[i] += bias;
-		const int index = (int)((in[i] + bias) * 64.0 + 512.);
-		if (index >= 1024) return 1.f; // iff exceed max index size
-		else if (index<0) return -1.f; // or below min index 0
-		return tanh_lut[index];
+		for(int i=0; i<size; i++) 
+		{
+			const int index = (int)((in[i] + bias[i]) * 64.0 + 512.);
+			if (index >= 1024) return 1.f; // iff exceed max index size
+			else if (index<0) return -1.f; // or below min index 0
+			in[i]= tanh_lut[index];
+		}
+	}	
+	inline void  fc(float *in, const int size, const float bias) // this is activation f(x)
+	{
+		for(int i=0; i<size; i++) 
+		{
+			const int index = (int)((in[i] + bias) * 64.0 + 512.);
+			if (index >= 1024) return 1.f; // iff exceed max index size
+			else if (index<0) return -1.f; // or below min index 0
+			in[i]= tanh_lut[index];
+		}
 	}
 #endif // MOJO_LUTS	
-	inline float  df(float *in, int i, int size) { return (1.f - in[i]*in[i]); }  // this is df(x), but we pass in the activated value f(x) and not x 
+	inline float  df(float *in, int i, const int size) { return (1.f - in[i]*in[i]); }  // this is df(x), but we pass in the activated value f(x) and not x 
 	const char name[]="tanh";
 }
 
 namespace elu 
 {
-	inline float  f(float *in, int i, int size, float bias) { if ((in[i] + bias) < 0) return 0.1f*(std::exp((in[i] + bias)) - 1.f); return (in[i] + bias); }
-	inline float  df(float *in, int i, int size) { if(in[i] > 0) return 1.f; else return 0.1f*std::exp(in[i]);}
+	inline void  f(float *in, const int size, const float *bias) 
+	{ 
+		for(int i=0; i<size; i++) 
+		{
+			if((in[i] + bias[i]) < 0) in[i]= 0.1f*(std::exp((in[i] + bias[i])) - 1.f);
+			else in[i]=(in[i] + bias[i]);
+		} 
+		
+	}
+	inline void  fc(float *in, const int size, const float bias) 
+	{ 
+		for(int i=0; i<size; i++) 
+		{
+			if((in[i] + bias) < 0) in[i]= 0.1f*(std::exp((in[i] + bias)) - 1.f);
+			else in[i]=(in[i] + bias);
+		} 
+		
+	}	inline float  df(float *in, int i, const int size) { if(in[i] > 0) return 1.f; else return 0.1f*std::exp(in[i]);}
 	const char name[]="elu";
 }
 
 namespace identity 
 {
-	inline float  f(float *in, int i, const int size, const float bias) { return (in[i] + bias); }
+	inline void  f(float *in, const int size, const float *bias) 
+	{
+		for(int i=0; i<size; i++) in[i]=(in[i] + bias[i]); 
+	}
+	inline void  fc(float *in, const int size, const float bias) 
+	{
+		for(int i=0; i<size; i++) in[i]=(in[i] + bias); 
+	}
 	inline float  df(float *in, int i, const int size){return 1.f;};
 	const char name[]="identity";
 }
 namespace relu 
 {
-	inline float  f(float *in, int i, const int size, const float bias) { if ((in[i] + bias) < 0) return 0; return (in[i] + bias); }
-	inline float  df(float *in, int i, const int size) {if(in[i] > 0) return 1.0f; else return 0.0f; }
+	inline void  f(float *in, const int size, const float *bias) 
+	{
+		for(int i=0; i<size; i++) 
+		{
+			if((in[i] + bias[i]) < 0) in[i]= 0; 
+			else in[i]=(in[i] + bias[i]);
+		} 
+	}
+	inline void  fc(float *in, const int size, const float bias) 
+	{
+		for(int i=0; i<size; i++) 
+		{
+			if((in[i] + bias) < 0) in[i]= 0; 
+			else in[i]=(in[i] + bias);
+		} 
+	}	inline float  df(float *in, int i, const int size) {if(in[i] > 0) return 1.0f; else return 0.0f; }
 	const char name[]="relu";
 };
 namespace lrelu 
 {
-	inline float  f(float *in, int i, const int size, const float bias) { if((in[i] + bias) < 0) return 0.01f*(in[i] + bias); return (in[i] + bias); }
+	inline void  f(float *in, const int size, const float *bias)
+	{
+		for(int i=0; i<size; i++) {
+			if((in[i] + bias[i]) < 0) in[i]= 0.01f*(in[i] + bias[i]); 
+			else in[i]=(in[i] + bias[i]);
+		} 
+	}
+	inline void  fc(float *in, const int size, const float bias)
+	{
+		for(int i=0; i<size; i++) {
+			if((in[i] + bias) < 0) in[i]= 0.01f*(in[i] + bias); 
+			else in[i]=(in[i] + bias);
+		} 
+	}
 	inline float  df(float *in, int i, const int size) {if(in[i] > 0) return 1.0f; else return 0.01f; }
 	const char name[]="lrelu";
 };
 namespace vlrelu 
 {
-	inline float  f(float *in, int i, const int size, const float bias) { if((in[i] + bias) < 0) return 0.33f*(in[i] + bias); return (in[i] + bias); }
+	inline void  f(float *in, const int size, const float *bias) 
+	{
+		for(int i=0; i<size; i++) {
+			if((in[i] + bias[i]) < 0) in[i]= 0.33f*(in[i] + bias[i]); 
+			else in[i]=(in[i] + bias[i]);
+		} 
+	}
+	inline void  fc(float *in, const int size, const float bias) 
+	{
+		for(int i=0; i<size; i++) {
+			if((in[i] + bias) < 0) in[i]= 0.33f*(in[i] + bias); 
+			else in[i]=(in[i] + bias);
+		} 
+	}
 	inline float  df(float *in, int i, const int size) {if(in[i] > 0) return 1.0f; else return 0.33f; }
 	const char name[]="vlrelu";
 };
 
 namespace sigmoid
 {
-	inline float  f(float *in, int i, const int size, const float bias) { return 1.0f/(1.0f+exp(-(in[i] + bias)));}
+	inline void  f(float *in, const int size, const float *bias) 
+	{ 
+		for(int i=0; i<size; i++)  in[i]=1.0f/(1.0f+exp(-(in[i] + bias[i])));
+	}
+	inline void  fc(float *in, const int size, const float bias) 
+	{ 
+		for(int i=0; i<size; i++)  in[i]=1.0f/(1.0f+exp(-(in[i] + bias)));
+	}
 	inline float df(float *in, int i, const int size) {return in[i]*(1.f-in[i]); }
 	const char name[]="sigmoid";
 };
 
+
 namespace softmax
 {
-	inline float f(float *in, int i, const int size, const float bias)
+	inline void f(float *in, const int size, const float *bias)
 	{
 		float max = in[0];
 		for (int j = 1; j<size; j++) if (in[j] > max) max = in[j];
@@ -175,11 +269,21 @@ namespace softmax
 		float denom = 0;
 		for (int j = 0; j<size; j++) denom += std::exp(in[j] - max);
 
-		return std::exp(in[i] - max) / denom;
+		for(int i=0; i<size; i++) in[i]= std::exp(in[i] - max) / denom;
 	}
+	inline void fc(float *in, const int size, const float bias)
+	{
+		float max = in[0];
+		for (int j = 1; j<size; j++) if (in[j] > max) max = in[j];
 
+		float denom = 0;
+		for (int j = 0; j<size; j++) denom += std::exp(in[j] - max);
+
+		for(int i=0; i<size; i++) in[i]= std::exp(in[i] - max) / denom;
+	}
 	inline float df(float *in, int i, const int size)
 	{
+		// don't really use... should use good cost func to make this go away
 		return in[i] * (1.f - in[i]);
 		//		for(int j=0; j<size; j++) 
 		//		{
@@ -191,9 +295,50 @@ namespace softmax
 	const char name[] = "softmax";
 };
 
+
+namespace brokemax
+{
+	inline void f(float *in, const int size, const float *bias)
+	{
+		for(int i=0; i<size; i++)
+		{
+		float max = in[0];
+		for (int j = 1; j<size; j++) if (in[j] > max) max = in[j];
+
+		float denom = 0;
+		for (int j = 0; j<size; j++) denom += std::exp(in[j] - max);
+
+		in[i]= std::exp(in[i] - max) / denom;
+		}
+
+	}
+	inline void fc(float *in, const int size, const float bias)
+	{
+		float max = in[0];
+		for (int j = 1; j<size; j++) if (in[j] > max) max = in[j];
+
+		float denom = 0;
+		for (int j = 0; j<size; j++) denom += std::exp(in[j] - max);
+
+		for(int i=0; i<size; i++) in[i]= std::exp(in[i] - max) / denom;
+	}
+	inline float df(float *in, int i, const int size)
+	{
+		// don't really use... should use good cost func to make this go away
+		return in[i] * (1.f - in[i]);
+		//		for(int j=0; j<size; j++) 
+		//		{
+		//			if(i==j) in[i]= in[i] * (1.f - in[i]);
+		//			else in[i] = in[i]*in[j];
+		//		}
+	}
+
+	const char name[] = "brokemax";
+};
 namespace none
 {
-	inline float f(float *in, int i, int size, float bias) {return 0;};
+	inline void f(float *in, const int size, const float *bias) {return;};
+	inline void fc(float *in, const int size, const float bias) {return;};
 	inline float df(float *in, int i, int size) {return 0;};
 	const char name[]="none";
 };
@@ -201,7 +346,8 @@ namespace none
 typedef struct 
 {
 public:
-	float (*f)(float *, int, const int, const float);
+	void (*f)(float *, const int, const float*);
+	void (*fc)(float *, const int, const float);
 	float (*df)(float *, int, const int);
 	const char *name;
 } activation_function;
@@ -209,15 +355,16 @@ public:
 activation_function* new_activation_function(std::string act)
 {
 	activation_function *p = new activation_function;
-	if(act.compare(tan_h::name)==0) { p->f = &tan_h::f; p->df = &tan_h::df; p->name=tan_h::name;return p;}
-	if(act.compare(identity::name)==0) { p->f = &identity::f; p->df = &identity::df; p->name=identity::name; return p;}
-	if(act.compare(vlrelu::name)==0) { p->f = &vlrelu::f; p->df = &vlrelu::df; p->name=vlrelu::name; return p;}
-	if(act.compare(lrelu::name)==0) { p->f = &lrelu::f; p->df = &lrelu::df; p->name=lrelu::name; return p;}
-	if(act.compare(relu::name)==0) { p->f = &relu::f; p->df = &relu::df; p->name=relu::name;return p;}
-	if(act.compare(sigmoid::name)==0) { p->f = &sigmoid::f; p->df = &sigmoid::df; p->name=sigmoid::name; return p;}
-	if(act.compare(elu::name)==0) { p->f = &elu::f; p->df = &elu::df; p->name=elu::name; return p;}
-	if(act.compare(none::name)==0) { p->f = &none::f; p->df = &none::df; p->name=none::name; return p;}
-	if(act.compare(softmax::name) == 0) { p->f = &softmax::f; p->df = &softmax::df; p->name = softmax::name; return p; }
+	if(act.compare(tan_h::name)==0) { p->f = &tan_h::f; p->fc = &tan_h::fc; p->df = &tan_h::df; p->name=tan_h::name;return p;}
+	if(act.compare(identity::name)==0) { p->f = &identity::f; p->fc = &identity::fc; p->df = &identity::df; p->name=identity::name; return p;}
+	if(act.compare(vlrelu::name)==0) { p->f = &vlrelu::f; p->fc = &vlrelu::fc; p->df = &vlrelu::df; p->name=vlrelu::name; return p;}
+	if(act.compare(lrelu::name)==0) { p->f = &lrelu::f; p->fc = &lrelu::fc; p->df = &lrelu::df; p->name=lrelu::name; return p;}
+	if(act.compare(relu::name)==0) { p->f = &relu::f; p->fc = &relu::fc;p->df = &relu::df; p->name=relu::name;return p;}
+	if(act.compare(sigmoid::name)==0) { p->f = &sigmoid::f; p->fc = &sigmoid::fc;p->df = &sigmoid::df; p->name=sigmoid::name; return p;}
+	if(act.compare(elu::name)==0) { p->f = &elu::f; p->fc = &elu::fc; p->df = &elu::df; p->name=elu::name; return p;}
+	if(act.compare(none::name)==0) { p->f = &none::f; p->fc = &none::fc; p->df = &none::df; p->name=none::name; return p;}
+	if(act.compare(softmax::name) == 0) { p->f = &softmax::f; p->fc = &softmax::fc;p->df = &softmax::df; p->name = softmax::name; return p; }
+	if(act.compare(brokemax::name) == 0) { p->f = &brokemax::f; p->fc = &brokemax::fc;p->df = &brokemax::df; p->name = brokemax::name; return p; }
 	delete p;
 	return NULL;
 }

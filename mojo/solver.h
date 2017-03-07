@@ -64,11 +64,11 @@ public:
 	// this increments the weight matrix w, which corresponds to connection index 'g'
 	// bottom is the number of grads coming up from the lower layer
 	// top is the current output node value of the upper layer
-	virtual void increment_w(matrix *w,  int g, const matrix &dW){}//, matrix *top){}
+	virtual void increment_w(matrix *w,  int g, const matrix &dW, const float custom_factor=1.0f){}//, matrix *top){}
 	virtual void push_back(int w, int h, int c){}	
 };
 
-#ifndef NO_TRAINING_CODE
+#ifndef MOJO_NO_TRAINING
 
 
 class sgd: public solver
@@ -76,11 +76,12 @@ class sgd: public solver
 public:
 	static const char *name(){return "sgd";}
 
-	virtual void increment_w(matrix *w,  int g, const matrix &dW)
+	virtual void increment_w(matrix *w,  int g, const matrix &dW, const float custom_factor = 1.0f)
 	{
 		const float w_decay=0.01f;//1;
+		const float lr=custom_factor*learning_rate;
 		for(int s=0; s<w->size(); s++)	
-			w->x[s] -= (dW.x[s] + w_decay*w->x[s])*learning_rate;
+			w->x[s] -= lr*(dW.x[s] + w_decay*w->x[s]);
 	}
 };
 
@@ -98,7 +99,7 @@ public:
 
 	
 	virtual void reset() { __for__(auto g __in__ G1) g->fill(0.f);}
-	virtual void increment_w(matrix *w,  int g, const matrix &dW)
+	virtual void increment_w(matrix *w,  int g, const matrix &dW, const float custom_factor = 1.0f)
 	{
 		float *g1 = G1[g]->x;
 		//float min, max;
@@ -106,11 +107,12 @@ public:
 		//std::cout << "((" << min << "," << max << ")";
 		const float eps = 1.e-8f;
 		// if (G1[g]->size() != w->size()) throw;
+		const float lr = custom_factor*learning_rate;
 		for(int s=0; s<w->size(); s++) 
 		{
 			g1[s] += dW.x[s] * dW.x[s];
 			//if (g1[s] < 1) throw;
-			w->x[s] -= learning_rate*dW.x[s]/(std::sqrt(g1[s]) + eps);
+			w->x[s] -= lr*dW.x[s]/(std::sqrt(g1[s]) + eps);
 		}	
 	};
 };
@@ -125,15 +127,17 @@ public:
 
 	virtual void push_back(int w, int h, int c){ G1.push_back(new matrix(w,h,c)); G1[G1.size() - 1]->fill(0);}
 	virtual void reset() { __for__(auto g __in__ G1) g->fill(0.f);}
-	virtual void increment_w(matrix *w,  int g, const matrix &dW)
+	virtual void increment_w(matrix *w,  int g, const matrix &dW, const float custom_factor = 1.0f)
 	{
 		float *g1 = G1[g]->x;
 		const float eps = 1.e-8f;
 		const float mu = 0.999f;
+		const float lr = 0.01f*custom_factor*learning_rate;
+
 		for(int s=0; s<(int)w->size(); s++)
 		{
 			g1[s] = mu * g1[s]+(1-mu) * dW.x[s] * dW.x[s];
-			w->x[s] -= 0.01f*learning_rate*dW.x[s]/(std::sqrt(g1[s]) + eps);
+			w->x[s] -= lr*dW.x[s]/(std::sqrt(g1[s]) + eps);
 		}	
 	};
 
@@ -164,17 +168,18 @@ public:
 		G2.push_back(new matrix(w,h,c)); G2[G2.size() - 1]->fill(0);
 	}
 
-	virtual void increment_w(matrix *w,  int g, const matrix &dW)
+	virtual void increment_w(matrix *w,  int g, const matrix &dW, const float custom_factor = 1.0f)
 	{
 		float *g1 = G1[g]->x;
 		float *g2 = G2[g]->x;
 		const float eps = 1.e-8f;
 		const float b1=0.9f, b2=0.999f;
+		const float lr = 0.1f*custom_factor*learning_rate;
 		for(int s=0; s<(int)w->size(); s++)
 			{
 				g1[s] = b1* g1[s]+(1-b1) * dW.x[s];
 				g2[s] = b2* g2[s]+(1-b2) * dW.x[s]*dW.x[s];
-				w->x[s] -= 0.1f*learning_rate* (g1[s]/(1.f-b1_t)) / ((float)std::sqrt(g2[s]/(1.-b2_t)) + eps);
+				w->x[s] -= lr* (g1[s]/(1.f-b1_t)) / ((float)std::sqrt(g2[s]/(1.-b2_t)) + eps);
 			}	
 	};
 

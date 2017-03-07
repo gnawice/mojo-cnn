@@ -36,6 +36,7 @@
 #include <random>
 #include <algorithm> 
 
+
 namespace mojo
 {
 
@@ -56,290 +57,16 @@ inline float dot(const float *x1, const float *x2, const int size)
 		return v;
 	};
 }
-// in_size is 'line length'
-inline bool unwrap_aligned_5x5(float *aligned_out, const float *in, const int in_size, const int stride=1)
-{
-	const int node_size = in_size - 5 + 1;
-	int c1 = 0;
-	float mpty = 0;
 
-//	for (int k = 0; k < node_size*node_size; k++) mpty += in[k]* in[k];
-//	if (mpty < 1e-6) return false;
+inline float unwrap_2d_dot(const float *x1, const float *x2, const int size, int stride1, int stride2)	
+{	
+	float v=0;	
 
-	for (int j = 0; j < node_size; j += stride) // intput w
-	{
-		for (int i = 0; i < node_size; i += stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 5 * sizeof(float)); c1 += 5; c2 += in_size;
-			c1 += 3;
-		}
-	}
-	return true;
+	for(int j=0; j<size; j++) 
+		v+= dot(&x1[stride1*j],&x2[stride2*j],size);
+	return v;
 }
 
-inline void unwrap_aligned_3x3(float *aligned_out, const float *in, const int in_size, const int stride=1)
-{
-	const int node_size = (in_size - 3) + 1;
-	int c1 = 0;
-	for (int j = 0; j < node_size; j += stride) // intput w
-	{
-		for (int i = 0; i < node_size; i += stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 3 * sizeof(float)); c1 += 3; c2 += in_size;
-			c1 += 3;
-		}
-	}
-}
-
-inline void unwrap_aligned_4x4(float *aligned_out, const float *in, const int in_size, const int stride = 1)
-{
-	const int node_size = (in_size - 4) + 1;
-	int c1 = 0;
-	for (int j = 0; j < node_size; j += stride) // intput w
-	{
-		for (int i = 0; i < node_size; i += stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 += 4; c2 += in_size;
-		}
-	}
-}
-inline void unwrap_aligned_2x2(float *aligned_out, const float *in, const int in_size, const int stride = 1)
-{
-	const int node_size = (in_size - 2) + 1;
-	int c1 = 0;
-	for (int j = 0; j < node_size; j += stride) // intput w
-	{
-		for (int i = 0; i < node_size; i += stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 +=2; c2 += in_size;
-			memcpy(&aligned_out[c1], &tn[c2], 2 * sizeof(float)); c1 +=2; c2 += in_size;
-		}
-	}
-}
-
-#ifndef MOJO_SSE3
-inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	const float *_filt = filter_ptr;
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0];// +_img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt = filter_ptr;
-		out[j] = c0;
-	}
-}
-
-
-inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	const float *_filt = filter_ptr;
-
-
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; _filt += 4;
-		c0 += _img[0] * _filt[0];
-		_img += 4; _filt = filter_ptr;
-		out[j] = c0;
-
-	}
-}
-
-inline void dot_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	const float *_filt = filter_ptr;
-
-
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		float c0 = _img[0] * _filt[0] + _img[1] * _filt[1] + _img[2] * _filt[2] + _img[3] * _filt[3];
-		_img += 4; 
-		out[j] = c0;
-
-	}
-}
-
-#endif 
-
-inline void unwrap_aligned(float *aligned_out, const float *in, const int in_size, const int kernel_size)
-{
-	const int node_size = in_size - kernel_size + 1;
-	int c1 = 0;
-	int mul = (int)((kernel_size*kernel_size +3) / 4);
-	int leftover = mul * 4- kernel_size*kernel_size;
-	for (int j = 0; j < node_size; j += 1)//stride) // intput w
-	{
-		for (int i = 0; i < node_size; i += 1)//stride) // intput w
-		{
-			const float *tn = in + j*in_size + i;
-			int c2 = 0;
-			for (int ii = 0; ii < kernel_size; ii += 1)//stride) // intput w
-			{
-				memcpy(&aligned_out[c1], &tn[c2], kernel_size * sizeof(float)); c1 += kernel_size; c2 += in_size;
-			}
-			c1 += leftover;
-		}
-	}
-}
-#ifdef MOJO_SSE3
-inline void dot_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	_mm_prefetch((const char *)(out), _MM_HINT_T0);
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		__m128 a, b, c0, c1;
-		//_mm_prefetch((const char *)(filter_ptr + 12), _MM_HINT_T0);
-		a = _mm_load_ps(_img); b = _mm_load_ps(filter_ptr);
-		c0 = _mm_mul_ps(a, b);
-
-		a = _mm_load_ps(_img + 4); b = _mm_load_ps(filter_ptr + 4);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-		a = _mm_load_ps(_img + 8); b = _mm_load_ps(filter_ptr + 8);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-		a = _mm_load_ps(_img + 12); b = _mm_load_ps(filter_ptr + 12);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-		a = _mm_load_ps(_img + 16); b = _mm_load_ps(filter_ptr + 16);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-		a = _mm_load_ps(_img + 20); b = _mm_load_ps(filter_ptr + 20);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-
-		//	a = _mm_load_ps(_img + 24); b = _mm_load_ps(filter_ptr + 24);
-		//	c1 = _mm_mul_ps(a, b);
-		//	a = _mm_set_ps(0, 0, 0, 1);
-		//	c1 = _mm_mul_ps(a, c1);
-		//	c0 = _mm_add_ps(c0, c1);
-
-		c0 = _mm_hadd_ps(c0, c0);
-		c0 = _mm_hadd_ps(c0, c0);
-
-		_mm_store_ss(&out[j], c0);
-		out[j] += _img[24] * filter_ptr[24];
-		_img += 28;
-	}
-}
-
-inline void dot_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	_mm_prefetch((const char *)(out), _MM_HINT_T0);
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		__m128 a, b, c0, c1;
-		_mm_prefetch((const char *)(out + j), _MM_HINT_T0);
-		a = _mm_load_ps(_img); b = _mm_load_ps(filter_ptr);
-		c0 = _mm_mul_ps(a, b);
-
-		a = _mm_load_ps(_img + 4); b = _mm_load_ps(filter_ptr + 4);
-		c1 = _mm_mul_ps(a, b);
-		c0 = _mm_add_ps(c0, c1);
-
-//		a = _mm_load_ps(_img + 8); b = _mm_load_ps(filter_ptr + 8);
-//		c1 = _mm_mul_ps(a, b);
-//		c0 = _mm_add_ps(c0, c1);
-
-		c0 = _mm_hadd_ps(c0, c0);
-		c0 = _mm_hadd_ps(c0, c0);
-
-		_mm_store_ss(&out[j], c0);
-
-		out[j] += _img[8] * filter_ptr[8];
-
-		_img += 12;
-	}
-}
-inline void dot_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
-{
-	_mm_prefetch((const char *)(out), _MM_HINT_T0);
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		__m128 a, b, c0;
-		_mm_prefetch((const char *)(out + j), _MM_HINT_T0);
-		a = _mm_load_ps(_img); b = _mm_load_ps(filter_ptr);
-		c0 = _mm_mul_ps(a, b);
-
-		c0 = _mm_hadd_ps(c0, c0);
-		c0 = _mm_hadd_ps(c0, c0);
-
-		_mm_store_ss(&out[j], c0);
-
-		_img += 4;
-	}
-}
-// not finished
-inline void dot_unwrapped_sse(const float *_img, const float *filter_ptr, float *out, const int outsize, const int filtersize)
-{
-	__m128 a, b, c0, c1;
-	for (int j = 0; j < outsize; j += 1)//stride) // intput w
-	{
-		_mm_prefetch((const char *)(out + j), _MM_HINT_T0);
-		a = _mm_load_ps(_img); b = _mm_load_ps(filter_ptr);
-		c0 = _mm_mul_ps(a, b);
-		int i;
-		for (i = 4; i < filtersize*filtersize; i += 4)
-		{
-			a = _mm_load_ps(_img + i); b = _mm_load_ps(filter_ptr + i);
-			c1 = _mm_mul_ps(a, b);
-			c0 = _mm_add_ps(c0, c1);
-		}
-		const int aligned_size = i;
-		i -= 4;
-		int leftover = filtersize*filtersize-i ;
-
-		c0 = _mm_hadd_ps(c0, c0);
-		c0 = _mm_hadd_ps(c0, c0);
-		_mm_store_ss(&out[j], c0);
-		
-		//i = aligned_size - 1;
-		while (leftover > 0)
-		{
-			out[j] += _img[i + leftover] * filter_ptr[i + leftover];
-			leftover--;
-		}
-		_img += aligned_size;
-	}
-}
-#endif
 
 // second item is rotated 180 (this is a convolution)
 inline float dot_rot180(const float *x1, const float *x2, const int size)	
@@ -358,63 +85,6 @@ inline float dot_rot180(const float *x1, const float *x2, const int size)
 	};
 
 }
-
-inline float unwrap_2d_dot(const float *x1, const float *x2, const int size, int stride1, int stride2)	
-{	
-	float v=0;	
-
-	for(int j=0; j<size; j++) 
-		v+= dot(&x1[stride1*j],&x2[stride2*j],size);
-	return v;
-}
-
-//#include <smmintrin.h>
-
-inline float unwrap_2d_dot_5x5(const float *x1, const float *x2,  int stride1, int stride2)	
-{
-	const float *f1 = &x1[0]; const float *f2 = &x2[0];
-	float v;
-	v = f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]+f1[3]*f2[3]+f1[4]*f2[4]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]+f1[3]*f2[3]+f1[4]*f2[4]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]+f1[3]*f2[3]+f1[4]*f2[4]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]+f1[3]*f2[3]+f1[4]*f2[4]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]+f1[3]*f2[3]+f1[4]*f2[4]; 
-	return v;
-}
-
-inline float unwrap_2d_dot_3x3(const float *x1, const float *x2,  int stride1, int stride2)	
-{	
-	const float *f1=&x1[0]; const float *f2=&x2[0];
-	float v;
-	v = f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]; f1+=stride1; f2+=stride2;
-	v+= f1[0]*f2[0]+f1[1]*f2[1]+f1[2]*f2[2]; 
-	return v;
-}
-
-// second item is rotated 180
-inline float unwrap_2d_dot_rot180_5x5(const float *x1, const float *x2,  int stride1, int stride2)	
-{	
-	const float *f1=&x1[0]; const float *f2=&x2[stride2*4];
-	float v = f1[0]*f2[4]+f1[1]*f2[3]+f1[2]*f2[2]+f1[3]*f2[1]+f1[4]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[4]+f1[1]*f2[3]+f1[2]*f2[2]+f1[3]*f2[1]+f1[4]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[4]+f1[1]*f2[3]+f1[2]*f2[2]+f1[3]*f2[1]+f1[4]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[4]+f1[1]*f2[3]+f1[2]*f2[2]+f1[3]*f2[1]+f1[4]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[4]+f1[1]*f2[3]+f1[2]*f2[2]+f1[3]*f2[1]+f1[4]*f2[0]; 
-	return v;
-}
-
-// second item is rotated 180
-inline float unwrap_2d_dot_rot180_3x3(const float *x1, const float *x2,  int stride1, int stride2)	
-{	
-	const float *f1=&x1[0]; const float *f2=&x2[stride2*2];
-	float v = f1[0]*f2[2]+f1[1]*f2[1]+f1[2]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[2]+f1[1]*f2[1]+f1[2]*f2[0]; f1+=stride1; f2-=stride2;
-	v+= f1[0]*f2[2]+f1[1]*f2[1]+f1[2]*f2[0]; 
-	return v;
-}
-
-// second item is rotated 180
 inline float unwrap_2d_dot_rot180(const float *x1, const float *x2, const int size, int stride1, int stride2)	
 {	
 	float v=0;	
@@ -424,6 +94,300 @@ inline float unwrap_2d_dot_rot180(const float *x1, const float *x2, const int si
 	}
 	return v;
 }
+
+
+inline void unwrap_aligned_NxN(const int N, float *aligned_out,  const float *in, const int in_size, const int stride = 1)
+{
+	const int node_size = (in_size - N) + 1;
+	int c1 = 0;
+	int off = 0;
+	const int inc_off = N*N*8;
+
+	for (int j = 0; j < node_size; j += 1) // intput h
+	{
+		for (int i = 0; i < node_size; i += 1) // intput w
+		{
+			const float *tn = in + j*in_size + i;
+
+			if(N==5)
+			{
+				for (int k = 0; k < 5; k++)
+				{
+					aligned_out[c1 + 0 +  k * 40 + off] = tn[0 + 0 + in_size*k];
+					aligned_out[c1 + 8 +  k * 40 + off] = tn[0 + 1 + in_size*k];
+					aligned_out[c1 + 16 + k * 40 + off] = tn[0 + 2 + in_size*k];
+					aligned_out[c1 + 24 + k * 40 + off] = tn[0 + 3 + in_size*k];
+					aligned_out[c1 + 32 + k * 40 + off] = tn[0 + 4 + in_size*k];
+				}
+			}
+			else if(N==3)
+			{
+				aligned_out[c1 + off] = tn[0];
+				aligned_out[c1 + 8 + off] = tn[0 + 1];
+				aligned_out[c1 + 16 + off] = tn[0 + 2];
+
+				aligned_out[c1 + 24 + off] = tn[0 +     in_size];
+				aligned_out[c1 + 32 + off] = tn[0 + 1 + in_size];
+				aligned_out[c1 + 40 + off] = tn[0 + 2 + in_size];
+
+				aligned_out[c1 + 48 + off] = tn[0 +     2 * in_size];
+				aligned_out[c1 + 56 + off] = tn[0 + 1 + 2 * in_size];
+				aligned_out[c1 + 64 + off] = tn[0 + 2 + 2 * in_size];
+			}
+			else
+			{
+				int cnt=0;
+				for (int k = 0; k < N; k++)
+				{
+					for (int m = 0; m < N; m++) 
+					{
+						aligned_out[c1 + cnt*8 + off] = tn[0 + m + in_size*k];
+						cnt++;
+					}
+				}
+			}
+
+
+			off++;
+			if (off > 7) { off = 0; c1 += inc_off; }
+		}
+
+	}
+}
+
+
+inline void dotsum_unwrapped_NxN(const int N, const float *im,  const float *filter_ptr, float *out, const int outsize)
+{
+	const int NN=N*N;
+	for (int j = 0; j < outsize; j += 8)
+	{
+		float *c = out+j;
+		for(int i=0; i<NN; i++) 
+		{ 
+			const float f = filter_ptr[i];
+			c[0]+=im[0]*f; c[1]+=im[1]*f; c[2]+=im[2]*f; c[3]+=im[3]*f; c[4]+=im[4]*f; c[5]+=im[5]*f; c[6]+=im[6]*f; c[7]+=im[7]*f;
+			im+=8; 
+		}
+	}
+}
+
+#ifdef MOJO_AVX
+
+inline void dotsum_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	_mm256_zeroupper();
+
+	const __m256 f0 = _mm256_broadcast_ss(&filter_ptr[0]); const __m256 f1 = _mm256_broadcast_ss(&filter_ptr[1]);
+	const __m256 f2 = _mm256_broadcast_ss(&filter_ptr[2]); const __m256 f3 = _mm256_broadcast_ss(&filter_ptr[3]);
+
+	for (int j = 0; j < outsize; j += 8)
+	{
+		__m256 a, c0, c1;
+		// multiply filter
+		a = _mm256_load_ps(_img); c0 = _mm256_mul_ps(a, f0);
+		a = _mm256_load_ps(_img +  8); c1 = _mm256_mul_ps(a, f1); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 16); c1 = _mm256_mul_ps(a, f2); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 24); c1 = _mm256_mul_ps(a, f3); c0 = _mm256_add_ps(c0, c1);
+		
+		// add result to output
+		a = _mm256_load_ps(out + j); 
+		c0 = _mm256_add_ps(c0, a);
+		_mm256_stream_ps(out + j, c0);
+		_img += 32;
+	}
+	_mm256_zeroupper();
+}
+
+inline void dotsum_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	_mm256_zeroupper();
+
+	const __m256 f0 = _mm256_broadcast_ss(&filter_ptr[0]); const __m256 f1 = _mm256_broadcast_ss(&filter_ptr[1]);
+	const __m256 f2 = _mm256_broadcast_ss(&filter_ptr[2]); const __m256 f3 = _mm256_broadcast_ss(&filter_ptr[3]);
+	const __m256 f4 = _mm256_broadcast_ss(&filter_ptr[4]); const __m256 f5 = _mm256_broadcast_ss(&filter_ptr[5]);
+	const __m256 f6 = _mm256_broadcast_ss(&filter_ptr[6]); const __m256 f7 = _mm256_broadcast_ss(&filter_ptr[7]);
+	const __m256 f8 = _mm256_broadcast_ss(&filter_ptr[8]);
+
+	for (int j = 0; j < outsize; j += 8)//stride) // intput w
+	{
+		__m256 a, c0, c1;
+		// multiply filter
+		a = _mm256_load_ps(_img); c0 = _mm256_mul_ps(a, f0);
+		a = _mm256_load_ps(_img +  8); c1 = _mm256_mul_ps(a, f1); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 16); c1 = _mm256_mul_ps(a, f2); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 24); c1 = _mm256_mul_ps(a, f3); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 32); c1 = _mm256_mul_ps(a, f4); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 40); c1 = _mm256_mul_ps(a, f5); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 48); c1 = _mm256_mul_ps(a, f6); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 56); c1 = _mm256_mul_ps(a, f7); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 64); c1 = _mm256_mul_ps(a, f8); c0 = _mm256_add_ps(c0, c1);
+		// add result to output
+		a = _mm256_load_ps(out + j); 
+		c0 = _mm256_add_ps(c0, a);
+		_mm256_stream_ps(out + j, c0);
+		_img += 72;
+	}
+	_mm256_zeroupper();
+
+}
+
+inline void dotsum_unwrapped_4x4(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	_mm256_zeroupper();
+
+	const __m256 f0 = _mm256_broadcast_ss(&filter_ptr[0]); const __m256 f1 = _mm256_broadcast_ss(&filter_ptr[1]);
+	const __m256 f2 = _mm256_broadcast_ss(&filter_ptr[2]); const __m256 f3 = _mm256_broadcast_ss(&filter_ptr[3]);
+	const __m256 f4 = _mm256_broadcast_ss(&filter_ptr[4]); const __m256 f5 = _mm256_broadcast_ss(&filter_ptr[5]);
+	const __m256 f6 = _mm256_broadcast_ss(&filter_ptr[6]); const __m256 f7 = _mm256_broadcast_ss(&filter_ptr[7]);
+	const __m256 f8 = _mm256_broadcast_ss(&filter_ptr[8]); const __m256 f9 = _mm256_broadcast_ss(&filter_ptr[9]);
+	const __m256 f10 = _mm256_broadcast_ss(&filter_ptr[10]); const __m256 f11 = _mm256_broadcast_ss(&filter_ptr[11]);
+	const __m256 f12 = _mm256_broadcast_ss(&filter_ptr[12]); const __m256 f13 = _mm256_broadcast_ss(&filter_ptr[13]);
+	const __m256 f14 = _mm256_broadcast_ss(&filter_ptr[14]); const __m256 f15 = _mm256_broadcast_ss(&filter_ptr[15]);
+
+	for (int j = 0; j < outsize; j += 8)//stride) // intput w
+	{
+		__m256 a, c0, c1;
+		// multiply filter
+		a = _mm256_load_ps(_img); c0 = _mm256_mul_ps(a, f0);
+		a = _mm256_load_ps(_img + 8); c1 = _mm256_mul_ps(a, f1); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 16); c1 = _mm256_mul_ps(a, f2); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 24); c1 = _mm256_mul_ps(a, f3); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 32); c1 = _mm256_mul_ps(a, f4); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 40); c1 = _mm256_mul_ps(a, f5); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 48); c1 = _mm256_mul_ps(a, f6); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 56); c1 = _mm256_mul_ps(a, f7); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 64); c1 = _mm256_mul_ps(a, f8); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 72); c1 = _mm256_mul_ps(a, f9); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 80); c1 = _mm256_mul_ps(a, f10); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 88); c1 = _mm256_mul_ps(a, f11); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 96); c1 = _mm256_mul_ps(a, f12); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 104); c1 = _mm256_mul_ps(a, f13); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 112); c1 = _mm256_mul_ps(a, f14); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 120); c1 = _mm256_mul_ps(a, f15); c0 = _mm256_add_ps(c0, c1);
+		// add result to output
+		a = _mm256_load_ps(out + j); 
+		c0 = _mm256_add_ps(c0, a);
+		_mm256_stream_ps(out + j, c0);
+		_img += 128;
+	}
+	_mm256_zeroupper();
+
+}
+
+inline void dotsum_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	_mm256_zeroupper();
+
+	const __m256 f0 = _mm256_broadcast_ss(&filter_ptr[0]); const __m256 f1 = _mm256_broadcast_ss(&filter_ptr[1]);
+	const __m256 f2 = _mm256_broadcast_ss(&filter_ptr[2]); const __m256 f3 = _mm256_broadcast_ss(&filter_ptr[3]);
+	const __m256 f4 = _mm256_broadcast_ss(&filter_ptr[4]); const __m256 f5 = _mm256_broadcast_ss(&filter_ptr[5]);
+	const __m256 f6 = _mm256_broadcast_ss(&filter_ptr[6]); const __m256 f7 = _mm256_broadcast_ss(&filter_ptr[7]);
+	const __m256 f8 = _mm256_broadcast_ss(&filter_ptr[8]); const __m256 f9 = _mm256_broadcast_ss(&filter_ptr[9]);
+	const __m256 f10 = _mm256_broadcast_ss(&filter_ptr[10]); const __m256 f11 = _mm256_broadcast_ss(&filter_ptr[11]);
+	const __m256 f12 = _mm256_broadcast_ss(&filter_ptr[12]); const __m256 f13 = _mm256_broadcast_ss(&filter_ptr[13]);
+	const __m256 f14 = _mm256_broadcast_ss(&filter_ptr[14]); const __m256 f15 = _mm256_broadcast_ss(&filter_ptr[15]);
+	const __m256 f16 = _mm256_broadcast_ss(&filter_ptr[16]); const __m256 f17 = _mm256_broadcast_ss(&filter_ptr[17]);
+	const __m256 f18 = _mm256_broadcast_ss(&filter_ptr[18]); const __m256 f19 = _mm256_broadcast_ss(&filter_ptr[19]);
+	const __m256 f20 = _mm256_broadcast_ss(&filter_ptr[20]); const __m256 f21 = _mm256_broadcast_ss(&filter_ptr[21]);
+	const __m256 f22 = _mm256_broadcast_ss(&filter_ptr[22]); const __m256 f23 = _mm256_broadcast_ss(&filter_ptr[23]);
+	const __m256 f24 = _mm256_broadcast_ss(&filter_ptr[24]); 
+
+	for (int j = 0; j < outsize; j += 8)
+	{
+		__m256 a, c0, c1;
+
+		a = _mm256_load_ps(_img); c0 = _mm256_mul_ps(a, f0);
+
+		a = _mm256_load_ps(_img + 8); c1 = _mm256_mul_ps(a, f1); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 16); c1 = _mm256_mul_ps(a, f2); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 24); c1 = _mm256_mul_ps(a, f3); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 32); c1 = _mm256_mul_ps(a, f4); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 40); c1 = _mm256_mul_ps(a, f5); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 48); c1 = _mm256_mul_ps(a, f6); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 56); c1 = _mm256_mul_ps(a, f7); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 64); c1 = _mm256_mul_ps(a, f8); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 72); c1 = _mm256_mul_ps(a, f9); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 80); c1 = _mm256_mul_ps(a, f10); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 88); c1 = _mm256_mul_ps(a, f11); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 96); c1 = _mm256_mul_ps(a, f12); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 104); c1 = _mm256_mul_ps(a, f13); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 112); c1 = _mm256_mul_ps(a, f14); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 120); c1 = _mm256_mul_ps(a, f15); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 128); c1 = _mm256_mul_ps(a, f16); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 136); c1 = _mm256_mul_ps(a, f17); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 144); c1 = _mm256_mul_ps(a, f18); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 152); c1 = _mm256_mul_ps(a, f19); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 160); c1 = _mm256_mul_ps(a, f20); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 168); c1 = _mm256_mul_ps(a, f21); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 176); c1 = _mm256_mul_ps(a, f22); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 184); c1 = _mm256_mul_ps(a, f23); c0 = _mm256_add_ps(c0, c1);
+		a = _mm256_load_ps(_img + 192); c1 = _mm256_mul_ps(a, f24); c0 = _mm256_add_ps(c0, c1);
+
+		a = _mm256_load_ps(out + j);
+		c0 = _mm256_add_ps(c0, a);
+
+		_mm256_stream_ps(out + j, c0);
+		_img += 200;
+
+	}
+
+	_mm256_zeroupper();
+}
+
+inline void dotsum_unwrapped_7x7(const float *_img,  const float *filter_ptr, float *out, const int outsize)
+{
+
+	_mm256_zeroupper();
+	__m256 f[49];//=new __m256(s);
+	for(int i=0; i<49; i++) f[i]= _mm256_broadcast_ss(&filter_ptr[i]); 
+
+	for (int j = 0; j < outsize; j += 8)
+	{
+		__m256 a, c0, c1;
+
+		a = _mm256_load_ps(_img);
+		c0 = _mm256_mul_ps(a, f[0]);
+		for(int i=1; i<49;i++)
+		{
+			a = _mm256_load_ps(_img + 8*i); c1 = _mm256_mul_ps(a, f[i]); c0 = _mm256_add_ps(c0, c1);
+		}
+
+		a = _mm256_load_ps(out + j);
+		c0 = _mm256_add_ps(c0, a);
+
+		_mm256_stream_ps(out + j, c0);
+		_img += 49*8;
+
+	}
+	_mm256_zeroupper();
+	//delete [] f;
+}
+
+#else // no AVX
+
+inline void dotsum_unwrapped_2x2(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	dotsum_unwrapped_NxN(2, _img,  filter_ptr, out, outsize);
+}
+inline void dotsum_unwrapped_3x3(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	dotsum_unwrapped_NxN(3, _img,  filter_ptr, out, outsize);
+}
+inline void dotsum_unwrapped_4x4(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	dotsum_unwrapped_NxN(4, _img,  filter_ptr, out, outsize);
+}
+inline void dotsum_unwrapped_5x5(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	dotsum_unwrapped_NxN(5, _img,  filter_ptr, out, outsize);
+}
+inline void dotsum_unwrapped_7x7(const float *_img, const float *filter_ptr, float *out, const int outsize)
+{
+	dotsum_unwrapped_NxN(7, _img,  filter_ptr, out, outsize);
+}
+
+#endif
+
 
 // matrix class ---------------------------------------------------
 // should use opencv if available
@@ -436,80 +400,77 @@ class matrix
 	float *_x_mem;
 	void delete_x() { delete[] _x_mem; x = NULL;  _x_mem = NULL; }
 	// 4 extra for alignment and 4 for 3 padding for SSE
-	float *new_x(const int size) { _x_mem = new float[size + 4+3];  x = (float *)(((uintptr_t)_x_mem + 16) & ~(uintptr_t)0x0F); return x; }
+	//float *new_x(const int size) { _x_mem = new float[size + 4+3];  x = (float *)(((uintptr_t)_x_mem + 16) & ~(uintptr_t)0x0F); return x; }
+	// avx mem aligment
+	float *new_x(const int size) { _x_mem = new float[size + 8 + 7];  x = (float *)(((uintptr_t)_x_mem + 32) & ~(uintptr_t)0x1F); return x; }
 public:
 	std::string _name;
 	int cols, rows, chans;
+	int chan_stride;
+	int chan_aligned;
 	float *x;
-	//unsigned char *empty_chan;
-
-	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), x(NULL)/*, empty_chan(NULL)*/{}
-
-	matrix( int _w, int _h, int _c=1, const float *data=NULL): cols(_w), rows(_h), chans(_c) 
+	// size must be divisible by 8 for AVX
+	virtual int calc_chan_stride(int w, int h)
 	{
-		_size=cols*rows*chans; _capacity=_size; x = new_x(_size); 
-		if(data!=NULL) memcpy(x,data,_size*sizeof(float));
-		
-//		empty_chan = new unsigned char[chans];
-//		memset(empty_chan, 0, chans);
+		if (chan_aligned)
+		{
+			int s = w*h;
+			const int remainder = s % 8;
+			if (remainder > 0) s += 8 - remainder;
+			return s;
+		}
+		else return w*h;
 	}
 
-	//inline void reset_empty_chans(){ memset(empty_chan, 0, chans); }
+	matrix( ): cols(0), rows(0), chans(0), _size(0), _capacity(0), chan_stride(0), x(NULL), chan_aligned(0)/*, empty_chan(NULL)*/{}
+
+
+	matrix( int _w, int _h, int _c=1, const float *data=NULL, int align_chan=0): cols(_w), rows(_h), chans(_c)
+	{
+		chan_aligned = align_chan;
+		chan_stride = calc_chan_stride(cols, rows);
+		_size= chan_stride*chans; _capacity=_size; x = new_x(_size);
+		if(data!=NULL) memcpy(x,data,_size*sizeof(float));
+	}
 
 	// copy constructor - deep copy
-	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); /*empty_chan = new unsigned char[chans]; memcpy(empty_chan, m.empty_chan, chans);*/} // { v=m.v; x=(float*)v.data();}
+	matrix( const matrix &m) : cols(m.cols), rows(m.rows), chan_aligned(m.chan_aligned), chans(m.chans), chan_stride(m.chan_stride), _size(m._size), _capacity(m._size)   {x = new_x(_size); memcpy(x,m.x,sizeof(float)*_size); /*empty_chan = new unsigned char[chans]; memcpy(empty_chan, m.empty_chan, chans);*/} // { v=m.v; x=(float*)v.data();}
 	// copy and pad constructor
-	matrix( const matrix &m, int pad_cols, int pad_rows, mojo::pad_type padding= mojo::pad_type::zero) : cols(m.cols), rows(m.rows), chans(m.chans), _size(m._size), _capacity(m._size)  
+	matrix( const matrix &m, int pad_cols, int pad_rows, mojo::pad_type padding= mojo::zero, int threads=1) : cols(m.cols), rows(m.rows), chans(m.chans), chan_aligned(m.chan_aligned), chan_stride(m.chan_stride), _size(m._size), _capacity(m._size)
 	{
 		x = new_x(_size); memcpy(x, m.x, sizeof(float)*_size);
-		*this = pad(pad_cols, pad_rows, padding);
-/*
-		_size = cols*rows*chans;
-		_capacity = _size;
-		x = new_x(_size); 
-	//	*this = m;
+		*this = pad(pad_cols, pad_rows, padding, threads);
+	}
 
-		*
-		
-//		empty_chan = new unsigned char[chans];
-//		memcpy(empty_chan, m.empty_chan, chans);
-		fill(0);
-		for(int c=0; c<m.chans; c++)
-		for(int j=0; j<m.rows; j++)
-		{
-			memcpy(x+pad_cols+(pad_rows+j)*cols+c*cols*rows,m.x+j*m.cols +c*m.cols*m.rows,sizeof(float)*m.cols);
-		}
-	*/	 
-	} // { v=m.v; x=(float*)v.data();}
-
-	~matrix() { if (x) delete_x(); /*if (empty_chan) delete[] empty_chan; */}
+	~matrix() { if (x) delete_x(); }
 	
 	matrix get_chans(int start_channel, int num_chans=1) const
 	{
-		return matrix(cols,rows,num_chans,&x[start_channel*cols*rows]);
+		return matrix(cols,rows,num_chans,&x[start_channel*chan_stride]);
 	}
 
 
 	// if edge_pad==0, then the padded area is just 0. 
 	// if edge_pad==1 it fills with edge pixel colors
 	// if edge_pad==2 it fills with median edge pixel color
-	matrix pad(int dx, int dy, mojo::pad_type edge_pad = mojo::pad_type::zero) const
+	matrix pad(int dx, int dy, mojo::pad_type edge_pad = mojo::zero, int threads=1) const
 	{
-		return pad(dx, dy, dx, dy, edge_pad);
+		return pad(dx, dy, dx, dy, edge_pad, threads);
 	}
-	matrix pad(int dx, int dy, int dx_right, int dy_bottom, mojo::pad_type edge_pad = mojo::pad_type::zero) const
+	matrix pad(int dx, int dy, int dx_right, int dy_bottom, mojo::pad_type edge_pad = mojo::zero, int threads=1) const
 	{
-		matrix v(cols+dx+dx_right,rows+dy+dy_bottom,chans);
+		matrix v(cols+dx+dx_right,rows+dy+dy_bottom,chans);//,NULL,this->chan_aligned);
 		v.fill(0);
 	
 		//float *new_x = new float[chans*w*h]; 
+#pragma omp parallel for num_threads(threads)
 		for(int k=0; k<chans; k++)
 		{
-			const int v_chan_offset=k*v.rows*v.cols;
-			const int chan_offset=k*cols*rows;
+			const int v_chan_offset=k*v.chan_stride;
+			const int chan_offset=k*chan_stride;
 			// find median color of perimeter
 			float median = 0.f;
-			if (edge_pad == mojo::pad_type::median_edge)
+			if (edge_pad == mojo::median_edge)
 			{
 				int perimeter = 2 * (cols + rows - 2);
 				std::vector<float> d(perimeter);
@@ -532,25 +493,25 @@ public:
 			for(int j=0; j<rows; j++)
 			{
 				memcpy(&v.x[dx+(j+dy)*v.cols+v_chan_offset], &x[j*cols+chan_offset], sizeof(float)*cols);
-				if(edge_pad== mojo::pad_type::edge)
+				if(edge_pad== mojo::edge)
 				{
 					// do left/right side
 					for(int i=0; i<dx; i++) v.x[i+(j+dy)*v.cols+v_chan_offset]=x[0+j*cols+chan_offset];
 					for (int i = 0; i<dx_right; i++) v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = x[(cols - 1) + j*cols + chan_offset];
 				}
-				else if (edge_pad == mojo::pad_type::median_edge)
+				else if (edge_pad == mojo::median_edge)
 				{
 					for (int i = 0; i < dx; i++) v.x[i + (j + dy)*v.cols + v_chan_offset] = median;
 					for (int i = 0; i < dx_right; i++) v.x[i + dx + cols + (j + dy)*v.cols + v_chan_offset] = median;
 				}
 			}
 			// top bottom pad
-			if(edge_pad== mojo::pad_type::edge)
+			if(edge_pad== mojo::edge)
 			{
 				for(int j=0; j<dy; j++)	memcpy(&v.x[(j)*v.cols+v_chan_offset],&v.x[(dy)*v.cols+v_chan_offset], sizeof(float)*v.cols);
 				for (int j = 0; j<dy_bottom; j++) memcpy(&v.x[(j + dy + rows)*v.cols + v_chan_offset], &v.x[(rows - 1 + dy)*v.cols + v_chan_offset], sizeof(float)*v.cols);
 			}
-			if (edge_pad == mojo::pad_type::median_edge)
+			if (edge_pad == mojo::median_edge)
 			{
 				for (int j = 0; j<dy; j++)	
 					for (int i = 0; i<v.cols; i++) 
@@ -564,21 +525,23 @@ public:
 		return v;
 	}
 
-	matrix crop(int dx, int dy, int w, int h) const
+	matrix crop(int dx, int dy, int w, int h, int threads=1) const
 	{
 		matrix v(w,h,chans);
 
-		//float *new_x = new float[chans*w*h]; 
+#pragma omp parallel for num_threads(threads)
 		for(int k=0; k<chans; k++)
-		for(int j=0; j<h; j++)
 		{
-			memcpy(&v.x[j*w+k*w*h], &x[dx+(j+dy)*cols+k*rows*cols], sizeof(float)*w);
+			for(int j=0; j<h; j++)
+			{
+				memcpy(&v.x[j*w+k*v.chan_stride], &x[dx+(j+dy)*cols+k*chan_stride], sizeof(float)*w);
+			}
 		}
 
 		return v;
 	}
 
-	mojo::matrix shift(int dx, int dy, mojo::pad_type edge_pad=mojo::pad_type::zero)
+	mojo::matrix shift(int dx, int dy, mojo::pad_type edge_pad=mojo::zero)
 	{
 		int orig_cols=cols;
 		int orig_rows=rows;
@@ -596,7 +559,7 @@ public:
 		for(int k=0; k<chans; k++)
 			for(int j=0; j<rows; j++)
 				for(int i=0; i<cols; i++)
-					v.x[i+j*cols+k*cols*rows]=x[(cols-i-1)+j*cols+k*cols*rows];
+					v.x[i+j*cols+k*chan_stride]=x[(cols-i-1)+j*cols+k*chan_stride];
 
 		return v;
 	}
@@ -606,14 +569,14 @@ public:
 		
 		for (int k = 0; k<chans; k++)
 			for (int j = 0; j<rows; j++)
-				memcpy(&v.x[(rows-1-j)*cols + k*cols*rows],&x[j*cols + k*cols*rows], cols*sizeof(float));
+				memcpy(&v.x[(rows-1-j)*cols + k*chan_stride],&x[j*cols + k*chan_stride], cols*sizeof(float));
 
 		return v;
 	}
 
 	void clip(float min, float max)
 	{
-		int s = rows*cols*chans;
+		int s = chan_stride*chans;
 		for (int i = 0; i < s; i++)
 		{
 			if (x[i] < min) x[i] = min;
@@ -624,13 +587,17 @@ public:
 
 	void min_max(float *min, float *max, int *min_i=NULL, int *max_i=NULL)
 	{
-		int s = rows*cols*chans;
+		int s = rows*cols;
 		int mini = 0;
 		int maxi = 0; 
-		for (int i = 0; i < s; i++)
+		for (int c = 0; c < chans; c++)
+		{
+			const int t = chan_stride*c;
+			for (int i = t; i < t+s; i++)
 		{
 			if (x[i] < x[mini]) mini = i;
 			if (x[i] > x[maxi]) maxi = i;
+		}
 		}
 		*min = x[mini];
 		*max = x[maxi];
@@ -638,10 +605,24 @@ public:
 		if (max_i) *max_i = maxi;
 	}
 
+	float mean()
+	{
+		const int s = rows*cols;
+		int cnt = 0;// channel*s;
+		float average = 0;
+		for (int c = 0; c < chans; c++)
+		{
+			const int t = chan_stride*c;
+			for (int i = 0; i < s; i++)
+				average += x[i + t];
+		}
+		average = average / (float)(s*chans);
+		return average;
+	}
 	float remove_mean(int channel)
 	{
 		int s = rows*cols;
-		int offset = channel*s;
+		int offset = channel*chan_stride;
 		float average=0;
 		for(int i=0; i<s; i++) average+=x[i+offset];		
 		average= average/(float)s;
@@ -651,15 +632,14 @@ public:
 
 	float remove_mean()
 	{
-		int s = rows*cols*chans;
+		float m=mean();
+		int s = chan_stride*chans;
 		//int offset = channel*s;
-		float average=0;
-		for(int i=0; i<s; i++) average+=x[i];		
-		average= average/(float)s;
-		for(int i=0; i<s; i++) x[i]-=average;		
-		return average;
+		for(int i=0; i<s; i++) x[i]-=m;		
+		return m;
 	}
-	void fill(float val) { for(int i=0; i<_size; i++) x[i]=val; }
+	void fill(float val) { for(int i=0; i<_size; i++) x[i]=val; 
+	}
 	void fill_random_uniform(float range)
 	{
 		std::mt19937 gen(0);
@@ -677,7 +657,7 @@ public:
 	// deep copy
 	inline matrix& operator =(const matrix &m)
 	{
-		resize(m.cols, m.rows, m.chans);
+		resize(m.cols, m.rows, m.chans, m.chan_aligned);
 		memcpy(x,m.x,sizeof(float)*_size);
 //		memcpy(empty_chan, m.empty_chan, chans);
 		return *this;
@@ -685,18 +665,15 @@ public:
 
 	int  size() const {return _size;} 
 	
-	void resize(int _w, int _h, int _c) { 
-		int s = _w*_h*_c;
+	void resize(int _w, int _h, int _c, int align_chans=0) { 
+		chan_aligned = align_chans;
+		int new_stride = calc_chan_stride(_w,_h);
+		int s = new_stride*_c;
 		if(s>_capacity) 
 		{ 
 			if(_capacity>0) delete_x(); _size = s; _capacity=_size; x = new_x(_size);
 		}
-/*		if (_c > chans)
-		{
-			if (empty_chan) delete[] empty_chan;
-			empty_chan = new unsigned char[_c];
-		}
-	*/	cols=_w; rows=_h; chans=_c; _size=s;
+		cols = _w; rows = _h; chans = _c; _size = s; chan_stride = new_stride; 
 	} 
 	
 	// dot vector to 2d mat
@@ -717,7 +694,7 @@ public:
 		for (int i = 0; i < _size; i++) x[i] -= m2.x[i];
 		return *this;
 	}
-#ifndef MOJO_SSE3
+#ifndef MOJO_AVX
 	// *= float
 	inline matrix operator *=(const float v) {
 		for (int i = 0; i < _size; i++) x[i] = x[i] * v;

@@ -90,7 +90,7 @@ public:
 	float elapsed_seconds() 
 	{	
 #if (_MSC_VER  == 1600)
-		float time_span = (clock() - start_progress_time)/CLOCKS_PER_SEC;
+		float time_span = (float)(clock() - start_progress_time)/CLOCKS_PER_SEC;
 		return time_span;
 #else
 		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now() - start_progress_time);
@@ -229,9 +229,137 @@ public:
 
 #if defined(MOJO_CV2) || defined(MOJO_CV3)
 
+
+	// transforms image. 
+	// x_center, y_center of input
+	// out dim is size of output w or h
+	// theta in degrees
+	cv::Mat matrix2cv(const mojo::matrix &m, bool uc8)// = false)
+	{
+		cv::Mat cv_m;
+		if (m.chans != 3)
+		{
+			cv_m = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
+		}
+		if (m.chans == 3)
+		{
+			cv::Mat in[3];
+			in[0] = cv::Mat(m.cols, m.rows, CV_32FC1, m.x);
+			in[1] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[m.cols*m.rows]);
+			in[2] = cv::Mat(m.cols, m.rows, CV_32FC1, &m.x[2 * m.cols*m.rows]);
+			cv::merge(in, 3, cv_m);
+		}
+		if (uc8)
+		{
+			double min_, max_;
+			cv_m = cv_m.reshape(1);
+			cv::minMaxIdx(cv_m, &min_, &max_);
+			cv_m = cv_m - min_;
+			max_ = max_ - min_;
+			cv_m /= max_;
+			cv_m *= 255;
+			cv_m = cv_m.reshape(m.chans, m.rows);
+			if (m.chans != 3)
+				cv_m.convertTo(cv_m, CV_8UC1);
+			else
+				cv_m.convertTo(cv_m, CV_8UC3);
+		}
+		return cv_m;
+	}
+
+	mojo::matrix cv2matrix(cv::Mat &m)
+	{
+		if (m.type() == CV_8UC1)
+		{
+			m.convertTo(m, CV_32FC1);
+			m = m / 255.;
+		}
+		if (m.type() == CV_8UC3)
+		{
+			m.convertTo(m, CV_32FC3);
+		}
+		if (m.type() == CV_32FC1)
+		{
+			return mojo::matrix(m.cols, m.rows, 1, (float*)m.data);
+		}
+		if (m.type() == CV_32FC3)
+		{
+			cv::Mat in[3];
+			cv::split(m, in);
+			mojo::matrix out(m.cols, m.rows, 3);
+			memcpy(out.x, in[0].data, m.cols*m.rows * sizeof(float));
+			memcpy(&out.x[m.cols*m.rows], in[1].data, m.cols*m.rows * sizeof(float));
+			memcpy(&out.x[2 * m.cols*m.rows], in[2].data, m.cols*m.rows * sizeof(float));
+			return out;
+		}
+		return  mojo::matrix(0, 0, 0);
+	}
+	mojo::matrix transform(const mojo::matrix in, const int x_center, const int y_center,
+		int out_dim, float theta/* = 0*/, float scale)// = 1.f)
+	{
+		const double _pi = 3.14159265358979323846;
+		float cos_theta = (float)std::cos(theta / 180.*_pi);
+		float sin_theta = (float)std::sin(theta / 180.*_pi);
+		float half_dim = 0.5f*(float)out_dim / scale;
+
+		cv::Point2f  pts1[4], pts2[4];
+		pts1[0] = cv::Point2f(x_center - half_dim, y_center - half_dim);
+		pts1[1] = cv::Point2f(x_center + half_dim, y_center - half_dim);
+		pts1[2] = cv::Point2f(x_center + half_dim, y_center + half_dim);
+		pts1[3] = cv::Point2f(x_center - half_dim, y_center + half_dim);
+
+		pts2[0] = cv::Point2f(-half_dim, -half_dim);
+		pts2[1] = cv::Point2f(half_dim, -half_dim);
+		pts2[2] = cv::Point2f(half_dim, half_dim);
+		pts2[3] = cv::Point2f(-half_dim, half_dim);
+
+		// rotate around center spot
+		for (int pt = 0; pt<4; pt++)
+		{
+			float x_t = (pts2[pt].x)*scale;
+			float y_t = (pts2[pt].y)*scale;
+			float x = cos_theta*x_t - sin_theta*y_t;
+			float y = sin_theta*x_t + cos_theta*y_t;
+
+			pts2[pt].x = x + (float)x_center;
+			pts2[pt].y = y + (float)y_center;
+
+			// we want to control how data is scaled down
+			//		if (scale>1)
+			//		{
+			//			pts1[pt].x = pts1[pt].x / (float)scale;
+			//			pts1[pt].y = pts1[pt].y / (float)scale;
+			//		}
+		}
+
+		cv::Mat input = mojo::matrix2cv(in,false);
+
+		//	if (scale>1)
+		//		cv::resize(in, input, cv::Size(0, 0), 1. / scale, 1. / scale);
+		//	else
+		//		input = in;
+
+
+		cv::Mat M = cv::getPerspectiveTransform(pts1, pts2);
+		cv::Mat cv_out;
+
+		cv::warpPerspective(input, cv_out,
+			cv::getPerspectiveTransform(pts1, pts2),
+			cv::Size((int)((float)out_dim), (int)((float)out_dim)),
+			cv::INTER_AREA, cv::BORDER_REPLICATE); //cv::INTER_LINEAR
+
+												   //INTER_AREA
+
+
+												   //	double min;
+												   //	cv::minMaxIdx(cv_out, &min);
+												   //	std::cout << "min: " << min << "||";
+		return mojo::cv2matrix(cv_out);
+	}
+//#endif
 mojo::matrix bgr2ycrcb(mojo::matrix &m)
 {
-	cv::Mat cv_m = matrix2cv(m);
+	cv::Mat cv_m = matrix2cv(m,false);
 	double min_, max_;
 	cv_m = cv_m.reshape(1);
 	cv::minMaxIdx(cv_m, &min_, &max_);
@@ -261,7 +389,7 @@ void save(mojo::matrix &m, std::string filename)
 void show(const mojo::matrix &m, float zoom = 1.0f, const char *win_name = "", int wait_ms=1)
 {
 	if (m.cols <= 0 || m.rows <= 0 || m.chans <= 0) return;
-	cv::Mat cv_m = matrix2cv(m);
+	cv::Mat cv_m = matrix2cv(m,false);
 	
 	double min_, max_;
 	cv_m = cv_m.reshape(1);
@@ -288,7 +416,7 @@ void hide(const char *win_name = "")
 enum mojo_palette{ gray=0, hot=1, tensorglow=2, voodoo=3, saltnpepa=4};
 
 
-cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo_palette::gray)
+cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo::gray)
 {
 
 	if (im.cols <= 0 || im.rows <= 0) return im;
@@ -302,25 +430,25 @@ cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo_palette::gr
 	{
 		unsigned char c = (unsigned char)im.data[i];
 		// tensor flow colors (red black blue)
-		if (color_palette == mojo_palette::tensorglow)
+		if (color_palette == mojo::tensorglow)
 		{
 			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
 			else if (c < 128) { RGB[2].data[i] = 0; RGB[1].data[i] = 0; RGB[0].data[i] = 2*(127 - c); }
 			else { RGB[2].data[i] = 2* (c - 128); RGB[1].data[i] = 0; RGB[0].data[i] = 0; }
 		}
-		else if (color_palette == mojo_palette::hot)
+		else if (color_palette == mojo::hot)
 		{
 			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
 			else if (c < 128) { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] = c * 2; }
 			else { RGB[0].data[i] = 0; RGB[1].data[i] = (c - 128) * 2; RGB[2].data[i] = 255; }
 		}
-		else if (color_palette == mojo_palette::saltnpepa)
+		else if (color_palette == mojo::saltnpepa)
 		{
 			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
 			else if (c&1) { RGB[0].data[i] = 0; RGB[1].data[i] = 0; RGB[2].data[i] = 0; }
 			else { RGB[0].data[i] = 255; RGB[1].data[i] = 255; RGB[2].data[i] = 255; }
 		}
-		else if (color_palette == mojo_palette::voodoo)
+		else if (color_palette == mojo::voodoo)
 		{
 			if (c == 255) { RGB[2].data[i] = 255; RGB[1].data[i] = 255;  RGB[0].data[i] = 255; }
 			else if (c < 128) 
@@ -335,7 +463,7 @@ cv::Mat colorize(cv::Mat im, mojo::mojo_palette color_palette = mojo_palette::gr
 	//cv::applyColorMap(im, im, cv::COLORMAP_WINTER);// COLORMAP_HOT); // cv::COLORMAP_JET); COLORMAP_RAINBOW
 }
 
-mojo::matrix draw_cnn_weights(mojo::network &cnn, mojo::mojo_palette color_palette=mojo_palette::gray, int layer_index=0)
+mojo::matrix draw_cnn_weights(mojo::network &cnn, int layer_index, mojo::mojo_palette color_palette=mojo::gray)
 {
 	int w = (int)cnn.W.size();
 	cv::Mat im;
@@ -345,7 +473,7 @@ mojo::matrix draw_cnn_weights(mojo::network &cnn, mojo::mojo_palette color_palet
 
 	int layers = (int)cnn.layer_sets[0].size();
 	//for (int k = 0; k < layers; k++)
-	int k=layer_index;
+	int k=layer_index-1;
 	{
 		base_layer *layer = cnn.layer_sets[0][k];
 	//	if (dynamic_cast<convolution_layer*> (layer) == NULL)  return mojo::matrix();// continue;
@@ -420,7 +548,14 @@ mojo::matrix draw_cnn_weights(mojo::network &cnn, mojo::mojo_palette color_palet
 	return cv2matrix(colorize(im, color_palette));
 }
 
-mojo::matrix draw_cnn_state(mojo::network &cnn, int layer_index, mojo::mojo_palette color_palette = mojo_palette::gray)
+mojo::matrix draw_cnn_weights(mojo::network &cnn, std::string layer_name, mojo::mojo_palette color_palette = mojo::gray)
+{
+	int layer_index = cnn.layer_map[layer_name];
+	return draw_cnn_weights(cnn, layer_index, color_palette);
+}
+
+
+mojo::matrix draw_cnn_state(mojo::network &cnn, int layer_index, mojo::mojo_palette color_palette = mojo::gray)
 {
 	cv::Mat im;
 	int layers = (int)cnn.layer_sets[0].size();
@@ -455,7 +590,7 @@ mojo::matrix draw_cnn_state(mojo::network &cnn, int layer_index, mojo::mojo_pale
 	return cv2matrix(colorize(im, color_palette));
 }
 
-mojo::matrix draw_cnn_state(mojo::network &cnn, std::string layer_name, mojo::mojo_palette color_palette = mojo_palette::gray)
+mojo::matrix draw_cnn_state(mojo::network &cnn, std::string layer_name, mojo::mojo_palette color_palette = mojo::gray)
 {
 	int layer_index = cnn.layer_map[layer_name];
 	return draw_cnn_state(cnn, layer_index, color_palette);
