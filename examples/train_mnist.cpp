@@ -37,9 +37,9 @@
 #include <sstream>
 #include <fstream>
 #include <stdio.h>
-#include <tchar.h>
+//#include <tchar.h>
 
-#define MOJO_CV3
+//#define MOJO_CV3
 #include <mojo.h>  
 #include <util.h>
 #include "mnist_parser.h"

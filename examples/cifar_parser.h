@@ -37,7 +37,7 @@
 #include <random>
 
 #include <stdio.h>
-#include <tchar.h>
+//#include <tchar.h>
 
 namespace cifar
 {
