@@ -661,10 +661,15 @@ public:
 		return true;
 	}
 	bool write(std::string &filename, bool binary = false, bool final = false) { 
-		std::ofstream temp(filename.c_str(), std::ios::binary);
+		std::ofstream temp((const char *)filename.c_str(), std::ios::binary);
 		return write(temp, binary, final);
 	}//, std::ofstream::binary);
-	bool write(const char *filename, bool binary = false, bool final = false) {return write(std::string(filename), binary, final); }
+
+	bool write(char *filename, bool binary = false, bool final = false) 
+	{
+		std::string str= filename;
+		return write(str, binary, final); 
+	}
 
 	// read network from a file/stream
 	
