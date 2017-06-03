@@ -1,0 +1,8 @@
+mojo:
+input 28 28 1
+convolution 5 8 1 elu
+semi_stochastic_pool 3 3
+convolution 1 16 1 elu
+convolution 5 48 1 elu
+semi_stochastic_pool 2 2
+softmax 10
