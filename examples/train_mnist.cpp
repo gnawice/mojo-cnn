@@ -94,7 +94,12 @@ int main()
 	cnn.set_mini_batch_size(mini_batch_size);
 	cnn.set_smart_training(true); // automate training
 	cnn.set_learning_rate(initial_learning_rate);
-	 
+	
+	// Note, network descriptions can be read from a text file with similar format to the API
+	cnn.read("../models/mnist_quickstart.txt");
+
+	/*
+	// to construct the model through API calls...
 	cnn.push_back("I1", "input 28 28 1");				// MNIST is 28x28x1
 	cnn.push_back("C1", "convolution 5 8 1 elu");		// 5x5 kernel, 20 maps. stride 1. out size is 28-5+1=24
 	cnn.push_back("P1", "semi_stochastic_pool 3 3");	// pool 3x3 blocks. stride 3. outsize is 8
@@ -102,10 +107,10 @@ int main()
 	cnn.push_back("C2", "convolution 5 48 1 elu");		// 5x5 kernel, 200 maps.  out size is 8-5+1=4
 	cnn.push_back("P2", "semi_stochastic_pool 2 2");	// pool 2x2 blocks. stride 2. outsize is 2x2
 	cnn.push_back("FC2", "softmax 10");					// 'flatten' of 2x2 input is inferred
-
 	// connect all the layers. Call connect() manually for all layer connections if you need more exotic networks.
 	cnn.connect_all();
-	
+	// */	
+
 	std::cout << "==  Network Configuration  ====================================================" << std::endl;
 	std::cout << cnn.get_configuration() << std::endl;
 
