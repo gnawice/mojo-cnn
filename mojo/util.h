@@ -295,7 +295,7 @@ public:
 		return  mojo::matrix(0, 0, 0);
 	}
 	mojo::matrix transform(const mojo::matrix in, const int x_center, const int y_center,
-		int out_dim, float theta/* = 0*/, float scale)// = 1.f)
+		int out_dim, float theta, float scale)// theta =0 scale= 1.f)
 	{
 		const double _pi = 3.14159265358979323846;
 		float cos_theta = (float)std::cos(theta / 180.*_pi);
@@ -331,7 +331,7 @@ public:
 			//			pts1[pt].y = pts1[pt].y / (float)scale;
 			//		}
 		}
-
+		
 		cv::Mat input = mojo::matrix2cv(in,false);
 
 		//	if (scale>1)
@@ -356,7 +356,7 @@ public:
 												   //	std::cout << "min: " << min << "||";
 		return mojo::cv2matrix(cv_out);
 	}
-//#endif
+
 mojo::matrix bgr2ycrcb(mojo::matrix &m)
 {
 	cv::Mat cv_m = matrix2cv(m,false);

@@ -74,18 +74,19 @@
 
 #pragma comment(lib, "opencv_world310")
 #endif
-
-
-// forward declare these for data augmentation
-extern cv::Mat matrix2cv(const mojo::matrix &m, bool uc8 = false);
-extern mojo::matrix cv2matrix(cv::Mat &m);
-extern mojo::matrix transform(const mojo::matrix in, const int x_center, const int y_center, int out_dim, float theta = 0, float scale = 1.f);
-
 #endif
+
+
 
 
 namespace mojo {
 
+#if defined(MOJO_CV2) || defined(MOJO_CV3)
+// forward declare these for data augmentation
+cv::Mat matrix2cv(const mojo::matrix &m, bool uc8 = false);
+mojo::matrix cv2matrix(cv::Mat &m);
+mojo::matrix transform(const mojo::matrix in, const int x_center, const int y_center, int out_dim, float theta = 0, float scale = 1.f);
+#endif
 
 
 	// sleep needed for threading
@@ -661,10 +662,15 @@ public:
 		return true;
 	}
 	bool write(std::string &filename, bool binary = false, bool final = false) { 
-		std::ofstream temp(filename.c_str(), std::ios::binary);
+		std::ofstream temp((const char *)filename.c_str(), std::ios::binary);
 		return write(temp, binary, final);
 	}//, std::ofstream::binary);
-	bool write(const char *filename, bool binary = false, bool final = false) {return write(std::string(filename), binary, final); }
+
+	bool write(char *filename, bool binary = false, bool final = false) 
+	{
+		std::string str= filename;
+		return write(str, binary, final); 
+	}
 
 	// read network from a file/stream
 	
