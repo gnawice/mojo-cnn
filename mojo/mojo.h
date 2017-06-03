@@ -48,10 +48,8 @@
 			// this macro uses OMP where the loop is split up dynamically and work is taken by next available thread
 			#define MOJO_THREAD_THIS_LOOP_DYNAMIC(a) __pragma(omp parallel for schedule(dynamic) num_threads(a))
 		#else
-			#define MOJO_THREAD_THIS_LOOP(a)
-			#define MOJO_THREAD_THIS_LOOP_DYNAMIC(a)
-			//#define MOJO_THREAD_THIS_LOOP(a) _Pragma("omp parallel for schedule(dynamic) num_threads(" #a ")")
-			//#define MOJO_THREAD_THIS_LOOP_DYNAMIC(a) _Pragma("omp parallel for schedule(dynamic) num_threads(" #a ")")
+			#define MOJO_THREAD_THIS_LOOP(a) _Pragma("omp parallel for schedule(dynamic) num_threads(" #a ")")
+			#define MOJO_THREAD_THIS_LOOP_DYNAMIC(a) _Pragma("omp parallel for schedule(dynamic) num_threads(" #a ")")
 	#endif
 #endif //_WIN32
 #else
