@@ -1,6 +1,6 @@
 version: 1.0.{build}
-image: Visual Studio 2017
-configuration: Release
+image: Visual Studio 2015
+configuration: Release 2015
 platform: x64
 build:
   project: examples\mojo_vc2010.sln
