@@ -37,8 +37,9 @@
 
 namespace mojo
 {
-
-#include <windows.h>
+//#ifdef _WIN32
+//#include <windows.h>
+//#endif
 	/*
 	double PCFreq = 0.0;
 	__int64 CounterStart = 0;
