@@ -1,3 +1,4 @@
+![](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn)
 # mojo cnn 
 #### the *fast* and *easy* header only c++ convolutional neural network package 
 
