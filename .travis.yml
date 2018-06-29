@@ -1,0 +1,14 @@
+dist: trusty
+language: cpp
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-7
+      - g++-7
+before_install: cd examples	  
+script:
+  - export CC=gcc-7
+  - export CXX=g++-7
+  - make
