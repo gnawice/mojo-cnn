@@ -1,4 +1,8 @@
-[![Build status](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)
+|<sub>MSVC Win64</sub>|<sub>GCC Linux64</sub>|
+|:---|:---|
+|[![Build status](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)|[![Build Status](https://travis-ci.org/gnawice/mojo-cnn.svg?branch=master)](https://travis-ci.org/gnawice/mojo-cnn)|
+
+
 # mojo cnn 
 #### the *fast* and *easy* header only c++ convolutional neural network package 
 
