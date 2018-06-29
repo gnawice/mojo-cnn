@@ -1,4 +1,4 @@
-![](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn)
+[![Build status](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)](https://ci.appveyor.com/api/projects/status/github/gnawice/mojo-cnn?svg=true)
 # mojo cnn 
 #### the *fast* and *easy* header only c++ convolutional neural network package 
 
