@@ -12,9 +12,6 @@ train_mnist: train_mnist.cpp
 train_cifar: train_cifar.cpp 
 	$(CC) $(CFLAGS_OMP) train_cifar.cpp -o train_cifar
 
-vgg: vgg.cpp 
-	$(CC) $(CFLAGS_OMP) vgg.cpp -o vgg
-
 clean:
 	-rm -f vgg
 	-rm -f test
