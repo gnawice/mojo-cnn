@@ -1,8 +1,23 @@
-mojo:
-input 28 28 1
-convolution 5 8 1 elu
+mojo:  
+# first line and filetype identifier must be 'mojo:' for quick start files
+# comments in quick start file must start at the beginning of the line (not after the layer description)
+# the input is 28x28 and 1 channel
+input 28 28 1  
+
+# 5x5 convolution layer with 8 outputs and stride 1. elu (exponential linear unit) activation. 
+convolution 5 8 1 elu          
+
+# pooling size 3x3 stride 3    
 semi_stochastic_pool 3 3
+
+# inception layer (1x1 convolution)    
 convolution 1 16 1 elu
+
+# 5x5 convolution layer with 8 outputs and stride 1. elu (exponential linear unit) activation.
 convolution 5 48 1 elu
-semi_stochastic_pool 2 2
+
+# pooling size 2x2 stride 2   
+semi_stochastic_pool 2 2   
+
+# output softmax 10 channels
 softmax 10
