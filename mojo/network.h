@@ -324,7 +324,7 @@ public:
 		if (threads < 1) threads = omp_get_num_procs();
 		_thread_count = threads;
 		if(_internal_thread_count<=_thread_count) omp_set_num_threads(_thread_count);
-
+		omp_set_nested(1);
 #else
 		if (threads < 1) _thread_count = 1;
 		else _thread_count = threads;
@@ -339,6 +339,7 @@ public:
 		if (threads < 1) {threads = omp_get_num_procs(); threads = threads-1;} // one less than core count
 		if(threads<1) _internal_thread_count=1;
 		else _internal_thread_count=threads;
+		omp_set_nested(1);
 #else
 		_internal_thread_count=1;
 #endif
@@ -721,7 +722,7 @@ public:
 			layer_count = atoi(s.c_str());
 			version = 1;
 		}
-		else if (s.compare("mojo:") == 0)
+		else if (s.find("mojo:") == 0)
 		{
 			version = -1;
 			int cnt = 1;
@@ -730,6 +731,8 @@ public:
 			{
 				s = getcleanline(ifs);
 				if (s.empty()) continue;
+				if(s[0]=='#') continue;
+
 				push_back(int2str(cnt).c_str(), s.c_str());
 				cnt++;
 			}
