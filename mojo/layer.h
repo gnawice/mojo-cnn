@@ -639,7 +639,7 @@ public:
 		_has_weights = false;
 	}
 	virtual  ~maxout_layer() {}
-	virtual std::string get_config_string() { std::string str = "mfm" + int2str(_pool) + "\n"; return str; }
+	virtual std::string get_config_string() { std::string str = "mfm " + int2str(_pool) + "\n"; return str; }
 	virtual void resize(int _w, int _h = 1, int _c = 1)
 	{
 		_c /= _pool;
@@ -686,24 +686,24 @@ public:
 			bail("mfm layer has pool size that is not a multiple of the input channels");
 		
 		for (int i = 0; i < s; i++)
-				{
+		{
 			float max = top.node.x[i];
 			int maxk = i;
-					for (int k = 1; k < _pool; k++)
-					{
+			for (int k = 1; k < _pool; k++)
+			{
 				if (top.node.x[i + (k*s)] > max)
-						{
-							//node.x[i + c / 2 * chan_size] = max;
+				{
+					//node.x[i + c / 2 * chan_size] = max;
 					max = top.node.x[i + (k*s)];
 					maxk = i + (k*s);
-							// max_map tells which map 0 or 1 when pooling
-							//max_map.x[i + c / 2 * chan_size] = 0;
-						}
-					}
-			node.x[i] = max;
-			max_map.x[i] = (float)maxk;
+					// max_map tells which map 0 or 1 when pooling
+					//max_map.x[i + c / 2 * chan_size] = 0;
 				}
 			}
+			node.x[i] = max;
+			max_map.x[i] = (float)maxk;
+		}
+	}
 #ifndef MOJO_NO_TRAINING
 
 	virtual void distribute_delta(base_layer &top, const matrix &w, const int train = 1)
@@ -738,18 +738,33 @@ public:
 	int maps;
 	//int maps_per_kernel;
 	int kernels_per_map;
+	int groups;
 
 
 	convolution_layer(const char *layer_name, int _w, int _c, int _s, activation_function *p ) : base_layer(layer_name, _w, _w, _c) 
 	{
 		p_act=p; _stride =_s; kernel_rows=_w; kernel_cols=_w; maps=_c;kernels_per_map=0; pad_cols = kernel_cols-1; pad_rows = kernel_rows-1;
 		_use_bias = true;
+		groups=1;
 	}
+
+	convolution_layer(const char *layer_name, int _w, int _c, int _s, int _g, activation_function *p ) : base_layer(layer_name, _w, _w, _c) 
+	{
+		p_act=p; _stride =_s; kernel_rows=_w; kernel_cols=_w; maps=_c;kernels_per_map=0; pad_cols = kernel_cols-1; pad_rows = kernel_rows-1;
+		_use_bias = true;
+		groups=_g;
+	}
+
 	virtual  ~convolution_layer() {
 	}
-	virtual std::string get_config_string() {std::string str="convolution "+int2str(kernel_cols)+" "+int2str(maps)+" " + int2str(_stride) + " " +p_act->name+"\n"; return str;}
+
+	virtual std::string get_config_string() 
+	{
+		if(groups==1) {std::string str="convolution "+int2str(kernel_cols)+" "+int2str(maps)+" " + int2str(_stride) + " " +p_act->name+"\n"; return str;}
+		else {std::string str="group_convolution "+int2str(kernel_cols)+" "+int2str(maps)+" " + int2str(_stride)+" " + int2str(groups) + " " +p_act->name+"\n"; return str;}
+	}
 	
-	virtual int fan_size() { return kernel_rows*kernel_cols*maps *kernels_per_map; }
+	virtual int fan_size() { return kernel_rows*kernel_cols*maps*kernels_per_map; }
 
 	
 	virtual void resize(int _w, int _h=1, int _c=1) // special resize nodes because bias handled differently with shared wts
@@ -815,70 +830,157 @@ public:
 		const int node_size= node.cols;
 		const int top_node_size = top.node.cols;
 		const int outsize = node_size*node_size;
+		//printf("%d %d %d,", top.node.chans, node.chans, groups);
+		if ((top.node.chans == node.chans) && (top.node.chans==groups))
+		{
+			//	printf("here");
+			if(kernel_rows>=2 && (kernel_rows<=5))
+			{
+				matrix img_ptr(node_size, node_size, kernel_rows*kernel_rows, NULL, true);
 
+				for (int k = 0; k < map_cnt; k++) // input channels --- same as kernels_per_map - kern for each input
+				{
+					unwrap_aligned_NxN(kernel_rows, img_ptr.x, &top.node.x[k*kstep], jstep, stride);
+					float *ww = &w.x[(0 + k*maps)*kernel_size];
+
+					if(kernel_rows==2)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						dotsum_unwrapped_2x2(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
+					}
+					else if(kernel_rows==3)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						dotsum_unwrapped_3x3(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
+					}
+					else if(kernel_rows==4)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						dotsum_unwrapped_4x4(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
+					}
+					else //(kernel_rows==5)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						dotsum_unwrapped_5x5(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
+					}
+				}
+			}
+			else if (kernel_rows == 1)
+			{
+
+				for (int k = 0; k < map_cnt; k++) // input channels --- same as kernels_per_map - kern for each input
+				{
+						const float *_top_node = &top.node.x[k*kstep];
+							const float cw = w.x[(k + k*maps)*kernel_size];
+							const int mapoff = map_size*k;
+							for (int j = 0; j < node_size*node_size; j += stride) node.x[j + mapoff] += _top_node[j] * cw;
+				}
+			}
+		
+			return;
+		}
+		
 		if(kernel_rows>=2 && (kernel_rows<=5))
 		{
 			matrix img_ptr(node_size, node_size, kernel_rows*kernel_rows, NULL, true);
-			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-			{
-				unwrap_aligned_NxN(kernel_rows, img_ptr.x, &top.node.x[k*kstep], jstep, stride);
-				float *ww = &w.x[(0 + k*maps)*kernel_size];
 
-				if(kernel_rows==2)
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top_chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
+				for (int k = start_k; k < stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
-					MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-					for (int map = 0; map < map_cnt; map+=1) dotsum_unwrapped_2x2(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
-				}
-				else if(kernel_rows==3)
-				{
-					MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-					for (int map = 0; map < map_cnt; map+=1) dotsum_unwrapped_3x3(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
-				}
-				else if(kernel_rows==4)
-				{
-					MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-					for (int map = 0; map < map_cnt; map+=1) dotsum_unwrapped_4x4(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
-				}
-				else //(kernel_rows==5)
-				{
-					MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-					for (int map = 0; map < map_cnt; map+=1) dotsum_unwrapped_5x5(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
+					unwrap_aligned_NxN(kernel_rows, img_ptr.x, &top.node.x[k*kstep], jstep, stride);
+					float *ww = &w.x[(0 + k*maps)*kernel_size];
+
+					if(kernel_rows==2)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						for (int map = start_map; map < stop_map; map+=1) dotsum_unwrapped_2x2(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
+					}
+					else if(kernel_rows==3)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						for (int map = start_map; map < stop_map; map+=1) dotsum_unwrapped_3x3(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
+					}
+					else if(kernel_rows==4)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						for (int map = start_map; map < stop_map; map+=1) dotsum_unwrapped_4x4(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
+					}
+					else //(kernel_rows==5)
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						for (int map = start_map; map < stop_map; map+=1) dotsum_unwrapped_5x5(img_ptr.x, ww+map*kernel_size, node.x + map_stride*map, outsize);
+					}
 				}
 			}
 		}
 		else if (kernel_rows == 1)
 		{
-			for (int k = 0; k < top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-			{
-				const float *_top_node = &top.node.x[k*kstep];
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top_chans/groups;
+		//	const int group_start=0;
+		//	const int group_end= group_start+maps_per_group;
 
-				//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-				for (int map = 0; map < map_cnt; map++) 
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
+				for (int k = start_k; k < stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
-					const float cw = w.x[(map + k*maps)*kernel_size];
-					const int mapoff = map_size*map;
-					for (int j = 0; j < node_size*node_size; j += stride) node.x[j + mapoff] += _top_node[j] * cw;
+					const float *_top_node = &top.node.x[k*kstep];
+
+					//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+					for (int map = start_map; map < stop_map; map++) 
+					{
+						const float cw = w.x[(map + k*maps)*kernel_size];
+						const int mapoff = map_size*map;
+						for (int j = 0; j < node_size*node_size; j += stride) node.x[j + mapoff] += _top_node[j] * cw;
+					}
 				}
 			}
 		}
 		else
 		{
-			for(int map=0; map<maps; map++) // how many maps  maps= node.chans
-			{
-				for(int k=0; k<top_chans; k++) // input channels --- same as kernels_per_map - kern for each input
+
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top_chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
+
+				for(int map=start_map; map<stop_map; map++) // how many maps  maps= node.chans
 				{
-					MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
-					for(int j=0; j<node_size; j+= stride) // input h 
- 						for(int i=0; i<node_size; i+= stride) // intput w
-							node.x[i+(j)*node.cols +map_stride*map]+= 
-								unwrap_2d_dot(
-									&top.node.x[(i)+(j)*jstep + k*kstep],
-									&w.x[(map+k*maps)*kernel_size],
-									kernel_cols,
-									jstep,kernel_cols);
+					for(int k=start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
+					{
+						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						for(int j=0; j<node_size; j+= stride) // input h 
+ 							for(int i=0; i<node_size; i+= stride) // intput w
+								node.x[i+(j)*node.cols +map_stride*map]+= 
+									unwrap_2d_dot(
+										&top.node.x[(i)+(j)*jstep + k*kstep],
+										&w.x[(map+k*maps)*kernel_size],
+										kernel_cols,
+										jstep,kernel_cols);
 					
-				} // k
-			} // all maps=chans
+					} // k
+				} // all maps=chans
+			} //g groups
 		} 
 			
 	}
@@ -913,19 +1015,30 @@ public:
 		const int stride = _stride;
 
 		matrix delt(top.delta.cols, top.delta.rows, top.delta.chans,NULL,true);
-		
-		if (kernel_cols == 5)
+
+
+
+		if (kernel_cols == 5 && stride==1)
 		{
 			//*
 					matrix img_ptr(delta_size, delta_size, 25, NULL, true);
 					matrix filter_ptr(28, 1);
-					
+	
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top.delta.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
 					//matrix imgout_ptr(outsize + 7, 1);
-					for (int map = 0; map < map_cnt; map+=1) // how many maps  maps= node.chans
+					for (int map = start_map; map<stop_map; map++) // how many maps  maps= node.chans
 					{
 						unwrap_aligned_NxN(5, img_ptr.x, &delta_pad.x[map*map_stride], delta_size, stride);
 						const int outsize = top_delta_size*top_delta_size;
-						for (int k = 0; k < top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
+						for (int k = start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 						{
 							_w = &w.x[(k*maps + map)*kernel_size];
 							// flip-flip to make 180 version
@@ -938,6 +1051,7 @@ public:
 							memcpy(&top.delta.x[k*kstep],out,sizeof(float)*outsize);
 						}
 					}
+			}
 					/*/
 			matrix filter_ptr(28, 1);
 			matrix img_ptr(28 * delta_size*delta_size, 1);
@@ -964,42 +1078,62 @@ public:
 			//*/
 		//	return;
 		}
-		else if(kernel_cols==3)
+		else if(kernel_cols==3  && stride==1 )
 		{
-					matrix img_ptr(delta_size, delta_size, 9, NULL, true);
-					matrix filter_ptr(9, 1);
+			matrix img_ptr(delta_size, delta_size, 9, NULL, true);
+			matrix filter_ptr(9, 1);
 					
-					//matrix imgout_ptr(outsize + 7, 1);
-					for (int map = 0; map < map_cnt; map+=1) // how many maps  maps= node.chans
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top.delta.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+				//matrix imgout_ptr(outsize + 7, 1);
+				for (int map = start_map; map<stop_map; map++) // how many maps  maps= node.chans
+				{
+					unwrap_aligned_NxN(3, img_ptr.x, &delta_pad.x[map*map_stride], delta_size, stride);
+					const int outsize = top_delta_size*top_delta_size;
+					for (int k = start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 					{
-						unwrap_aligned_NxN(3, img_ptr.x, &delta_pad.x[map*map_stride], delta_size, stride);
-						const int outsize = top_delta_size*top_delta_size;
-						for (int k = 0; k < top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
-						{
-							_w = &w.x[(k*maps + map)*kernel_size];
-							// flip-flip to make 180 version
-							for (int ii = 0; ii < 9; ii++) filter_ptr.x[ii] = _w[8 - ii];
-							//float *out = node.x + map_stride*map;
-						//	float *out = &top.delta.x[k*kstep];
-						//	dotsum_unwrapped_3x3(img_ptr.x, filter_ptr.x, out, outsize);// imgout_ptr.x, outsize);
-							float *out = &delt.x[k*delt.chan_stride];
-							memcpy(out,&top.delta.x[k*kstep],sizeof(float)*outsize);
-							dotsum_unwrapped_3x3(img_ptr.x, filter_ptr.x, out, outsize);// imgout_ptr.x, outsize);
-							memcpy(&top.delta.x[k*kstep],out,sizeof(float)*outsize);
-						}
+						_w = &w.x[(k*maps + map)*kernel_size];
+						// flip-flip to make 180 version
+						for (int ii = 0; ii < 9; ii++) filter_ptr.x[ii] = _w[8 - ii];
+						//float *out = node.x + map_stride*map;
+					//	float *out = &top.delta.x[k*kstep];
+					//	dotsum_unwrapped_3x3(img_ptr.x, filter_ptr.x, out, outsize);// imgout_ptr.x, outsize);
+						float *out = &delt.x[k*delt.chan_stride];
+						memcpy(out,&top.delta.x[k*kstep],sizeof(float)*outsize);
+						dotsum_unwrapped_3x3(img_ptr.x, filter_ptr.x, out, outsize);// imgout_ptr.x, outsize);
+						memcpy(&top.delta.x[k*kstep],out,sizeof(float)*outsize);
 					}
+				}
+			}
 		}
-		else if (kernel_cols == 2)
+		else if (kernel_cols == 2  && stride==1)
 		{
 			matrix img_ptr(delta_size, delta_size, 4, NULL, true);
 			matrix filter_ptr(4, 1);
 			matrix out_aligned(top_delta_size,top_delta_size,1,NULL,true);
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top.delta.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
 			//matrix imgout_ptr(outsize + 7, 1);
-			for (int map = 0; map < map_cnt; map+=1) // how many maps  maps= node.chans
+			for (int map = start_map; map<stop_map; map++) // how many maps  maps= node.chans
 			{
 				unwrap_aligned_NxN(2, img_ptr.x, &delta_pad.x[map*map_stride], delta_size, stride);
 				const int outsize = top_delta_size*top_delta_size;
-				for (int k = 0; k < top_delta_chans; k++) // input channels --- same as kernels_per_map - kern for each input
+				for (int k = start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_w = &w.x[(k*maps + map)*kernel_size];
 					// flip-flip to make 180 version
@@ -1012,19 +1146,30 @@ public:
 
 				}
 			}
+			}
 		}
-		else if (kernel_cols == 1)
+		else if (kernel_cols == 1  && stride==1)
 		{
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top.delta.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
 			for (int j = 0; j<top.delta.rows; j += stride) // input h 
 			{
 				for (int i = 0; i<top.delta.cols; i += stride) // intput w
 				{
-					for (int k = 0; k<top.delta.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+					for (int k = start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 					{
 						int td_i = i + (j)*jstep + k*kstep;
 						float *delt = &delta_pad.x[i + (j)*delta_pad.cols + 0*map_stride];
 						float *wx = &w.x[(0 + k*maps)*kernel_size];
-						for (int map = 0; map<maps; map++) // how many maps  maps= node.chans
+						for (int map = start_map; map<stop_map; map++) // how many maps  maps= node.chans
 						{
 							top.delta.x[td_i] += (*delt)  * (*wx);
 							delt += map_stride;
@@ -1035,33 +1180,45 @@ public:
 					}
 				}
 			} //y
+			}
 		}
 		else
 		{
 
-			for(int j=0; j<top.delta.rows; j+=stride) // input h 
-			{
-				for(int i=0; i<top.delta.cols; i+=stride) // intput w
+			const int maps_per_group = map_cnt/groups;
+			const int top_chan_per_group = top.delta.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
+				for(int j=0; j<top.delta.rows; j+=stride) // input h 
 				{
-					for(int k=0; k<top.delta.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+					for(int i=0; i<top.delta.cols; i+=stride) // intput w
 					{
-						int td_i = i+(j)*jstep + k*kstep;
-						for(int map=0; map<maps; map++) // how many maps  maps= node.chans
+
+						for(int k=start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 						{
-							top.delta.x[td_i] += unwrap_2d_dot_rot180(
-								&delta_pad.x[i+(j)*delta_pad.cols + map*map_stride], 
-								&w.x[(map+k*maps)*kernel_size],
-								kernel_cols,
-								delta_pad.cols,kernel_cols);
+							int td_i = i+(j)*jstep + k*kstep;
+							for(int map=start_map; map<stop_map; map++) // how many maps  maps= node.chans
+							{
+								top.delta.x[td_i] += unwrap_2d_dot_rot180(
+									&delta_pad.x[i+(j)*delta_pad.cols + map*map_stride], 
+									&w.x[(map+k*maps)*kernel_size],
+									kernel_cols,
+									delta_pad.cols,kernel_cols);
 
-						} // all input chans
-						//output_index++;	
-					} 
-				}
-			} //y
+							} // all input chans
+							//output_index++;	
+						} 
+					}
+				} //y
 	
-		} // all maps=chans 
-
+			} // groups
+		}
 	}
 
 
@@ -1089,10 +1246,21 @@ public:
 		const float *_top;
 		if(kern_len==5)
 		{
-			for(int map=0; map<maps; map++) // how many maps  maps= node.chans
+
+				const int maps_per_group = maps/groups;
+			const int top_chan_per_group = top.node.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+
+			for(int map=start_map; map<stop_map; map++) // how many maps  maps= node.chans
 			{
 				const float *_delta =&delta.x[map*map_stride];
-				for(int k=0; k<top.node.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+				for(int k=start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_top = &top.node.x[k*kstep];
 					const int w_i = (map+k*maps)*kernel_size;
@@ -1133,13 +1301,23 @@ public:
 					_w[4]+= unwrap_2d_dot( _t, _delta,	node_size,top_node_size, delta_size);
 				} //y
 			} // all maps=chans 
+			}
 		}
 		else if(kern_len==3)
 		{
-			for(int map=0; map<maps; map++) // how many maps  maps= node.chans
+			const int maps_per_group = maps/groups;
+			const int top_chan_per_group = top.node.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+			for(int map=start_map; map<stop_map; map++) // how many maps  maps= node.chans
 			{
 				const float *_delta =&delta.x[map*map_stride];
-				for(int k=0; k<top.node.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+				for(int k=start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_top = &top.node.x[k*kstep];
 					const int w_i = (map+k*maps)*kernel_size;
@@ -1154,14 +1332,24 @@ public:
 					dw.x[w_i+2+(2)*kern_len]+= unwrap_2d_dot( _top + 2+(2)*jstep, _delta,	node_size,top_node_size, delta_size);
 				} //y
 			} // all maps=chans 
+			}
 		}
 		else
 		{
 		
-			for(int map=0; map<maps; map++) // how many maps  maps= node.chans
+			const int maps_per_group = maps/groups;
+			const int top_chan_per_group = top.node.chans/groups;
+
+			for(int g=0; g<groups; g++)
+			{	
+				const int start_k=0+g*top_chan_per_group;
+				const int stop_k=start_k+top_chan_per_group;
+				const int start_map=0+g*maps_per_group;
+				const int stop_map=start_map+maps_per_group;
+			for(int map=start_map; map<stop_map; map++) // how many maps  maps= node.chans
 			{
 				const float *_delta =&delta.x[map*map_stride];
-				for(int k=0; k<top.node.chans; k++) // input channels --- same as kernels_per_map - kern for each input
+				for(int k=start_k; k<stop_k; k++) // input channels --- same as kernels_per_map - kern for each input
 				{
 					_top = &top.node.x[k*kstep];
 					const int w_i = (map+k*maps)*kernel_size;
@@ -1176,6 +1364,7 @@ public:
 					} // x
 				} //y
 			} // all maps=chans 
+			}
 		}
 	}
 
@@ -1553,6 +1742,108 @@ public:
 #endif
 };
 
+//----------------------------------------------------------------------------------------------------------
+// S H U F F L E 
+//
+// memcopy maps in shuffled order over groups
+// first map of each group will be the same, 
+// the second map of the first group will be changed to these second map of the second group
+// the 3rd map of the first group will be changed to the 3rd map of the 3rd group, etc..
+// the secon map of the second group will be the second map of the 3rd group
+// ex:  shuffle 3:  (with 9 output maps)
+//     maps of previous layer:   
+//           0 1 2   3 4 5   6 7 8 
+//     output after shuffle:
+//           0 4 8   3 7 2   6 1 5
+// (can only connect to one input layer)
+class shuffle_layer : public base_layer
+{
+	int groups;
+public:
+	shuffle_layer(const char *layer_name, int  _groups) : base_layer(layer_name, 1)
+	{
+		groups = _groups;
+		if (groups < 1) groups = 1;
+		p_act = new_activation_function("identity");
+		_has_weights = false;
+	}
+	virtual  ~shuffle_layer() {}
+	virtual std::string get_config_string() { std::string str = "shuffle " + int2str(groups) + "\n"; return str; }
+	virtual void resize(int _w, int _h = 1, int _c = 1)
+	{
+		//_c /= groups;
+		if (_w<1) _w = 1; if (_h<1) _h = 1; if (_c<1) _c = 1;
+		//max_map.resize(_w, _h, _c);
+		base_layer::resize(_w, _h, _c);
+	}
+
+	inline float df(float *in, int i, int size) 
+	{
+		return 1.;
+	};
+
+	virtual void activate_nodes() { return; }
+	// no weights 
+	virtual void calculate_dw(const base_layer &top_layer, matrix &dw, const int train = 1) {}
+	virtual matrix * new_connection(base_layer &top, int weight_mat_index)
+	{
+		// wasteful to add weight matrix (1x1x1), but makes other parts of code more OO
+		// bad will happen if try to put more than one top layer
+		top.forward_linked_layers.push_back(std::make_pair(weight_mat_index, this));
+		int w = (top.node.cols) / 1;
+		int h = (top.node.rows) / 1;
+		resize(w, h, top.node.chans);
+#ifndef MOJO_NO_TRAINING
+		backward_linked_layers.push_back(std::make_pair(weight_mat_index, &top));
+#endif
+		return NULL;
+		//return new matrix(1, 1, 1);
+	}
+
+	
+	virtual void accumulate_signal(const base_layer &top, const matrix &w, const int train = 0)
+	{
+
+		const int gsize = top.node.chans/groups;
+		const float *top_node = top.node.x;
+		const int chan_size = top.node.rows*top.node.cols;
+
+		if((top.node.chans % groups) !=0) 
+			bail("shuffle layer has group size that is not a multiple of the input channels");
+
+		for (int i=0; i<top.node.chans; i++)
+		{
+			// shuffle logic to match above scheme
+			int g = ((i%gsize)*gsize+i)%top.node.chans;
+			memcpy(&node.x[i*chan_size], &top.node.x[g*chan_size], sizeof(float)*chan_size);
+		}
+	
+	}
+#ifndef MOJO_NO_TRAINING
+
+	virtual void distribute_delta(base_layer &top, const matrix &w, const int train = 1)
+	{
+
+		const int gsize = top.node.chans/groups;
+		const float *top_node = top.node.x;
+		const int chan_size = top.node.rows*top.node.cols;
+
+
+		if((top.node.chans % groups) !=0) 
+			bail("shuffle layer has group size that is not a multiple of the input channels");
+
+		for (int i=0; i<top.node.chans; i++)
+		{
+			// shuffle logic to match above scheme
+			int g = ((i%gsize)*gsize+i)%top.node.chans;
+			memcpy(&top.delta.x[g*chan_size], &delta.x[i*chan_size], sizeof(float)*chan_size);
+		//	for (int s=0; s<chan_size; s++) top.delta.x[s+g*chan_size] += delta.x[s+i*chan_size];
+		}
+
+	}
+#endif
+};
+
 //--------------------------------------------------
 // N E W    L A Y E R 
 //
@@ -1562,7 +1853,7 @@ base_layer *new_layer(const char *layer_name, const char *config)
 	std::istringstream iss(config); 
 	std::string str;
 	iss>>str;
-	int w,h,c,s;
+	int w,h,c,s,g;
 	if(str.compare("input")==0)
 	{
 		iss>>w; iss>>h; iss>>c;
@@ -1579,6 +1870,12 @@ base_layer *new_layer(const char *layer_name, const char *config)
 		//std::string act;
 		iss >> c; //iss >> act;
 		return new fully_connected_layer(layer_name, c, new_activation_function("softmax"));
+	}
+	else if (str.compare("brokemax") == 0)
+	{
+		//std::string act;
+		iss >> c; //iss >> act;
+		return new fully_connected_layer(layer_name, c, new_activation_function("brokemax"));
 	}
 	else if(str.compare("max_pool")==0)
 	{
@@ -1620,6 +1917,18 @@ base_layer *new_layer(const char *layer_name, const char *config)
 		std::string act;
 		iss>>w;iss>>c; iss >> s; iss>>act;
 		return new convolution_layer(layer_name, w,c,s, new_activation_function(act));
+	}
+	else if(str.compare("group_convolution")==0)
+	{
+		std::string act;
+		iss>>w;iss>>c; iss >> s; iss >> g; iss>>act;
+		return new convolution_layer(layer_name, w,c,s, g, new_activation_function(act));
+	}
+	else if(str.compare("shuffle")==0)
+	{
+	
+		iss >> g; 
+		return new shuffle_layer(layer_name, g);
 	}
 	else if (str.compare("dropout") == 0)
 	{

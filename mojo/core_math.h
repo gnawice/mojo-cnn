@@ -98,7 +98,7 @@ inline float unwrap_2d_dot_rot180(const float *x1, const float *x2, const int si
 
 inline void unwrap_aligned_NxN(const int N, float *aligned_out,  const float *in, const int in_size, const int stride = 1)
 {
-	const int node_size = (in_size - N) + 1;
+	const int node_size = (in_size - N)/stride + 1;
 	int c1 = 0;
 	int off = 0;
 	const int inc_off = N*N*8;
