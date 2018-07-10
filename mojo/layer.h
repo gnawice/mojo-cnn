@@ -62,7 +62,8 @@ namespace mojo
 
 #define int2str(a) std::to_string((long long)a)
 #define float2str(a) std::to_string((long double)a)
-#define bail(txt) {std::cerr << txt; throw;}
+#define bail(txt) {std::cerr << "ERROR :"  << txt << " @ " << __FILE__ <<  ": line " << __LINE__ <<  ": function " << __FUNCTION__  ; throw;}
+
 
 //----------------------------------------------------------------------------------------------------------
 // B A S E   L A Y E R
@@ -845,22 +846,22 @@ public:
 
 					if(kernel_rows==2)
 					{
-						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
 						dotsum_unwrapped_2x2(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
 					}
 					else if(kernel_rows==3)
 					{
-						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
 						dotsum_unwrapped_3x3(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
 					}
 					else if(kernel_rows==4)
 					{
-						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
 						dotsum_unwrapped_4x4(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
 					}
 					else //(kernel_rows==5)
 					{
-						MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
+						//MOJO_THREAD_THIS_LOOP_DYNAMIC(_thread_count)
 						dotsum_unwrapped_5x5(img_ptr.x, ww+k*kernel_size, node.x + map_stride*k, outsize);
 					}
 				}
@@ -1863,12 +1864,15 @@ base_layer *new_layer(const char *layer_name, const char *config)
 	{
 		std::string act;
 		iss>>c; iss>>act; 
+		if (c<=0) bail("fully_connected layer has invalid output channels");
+		//if (act.empty()) bail("fully_connected layer missing activation");
 		return new fully_connected_layer(layer_name, c, new_activation_function(act));
 	}
 	else if (str.compare("softmax") == 0)
 	{
 		//std::string act;
 		iss >> c; //iss >> act;
+		if (c<=0) bail("softmax layer has invalid output channels");
 		return new fully_connected_layer(layer_name, c, new_activation_function("softmax"));
 	}
 	else if (str.compare("brokemax") == 0)
@@ -1950,9 +1954,7 @@ base_layer *new_layer(const char *layer_name, const char *config)
 	}	
 	else
 	{
-
-		//fprintf(stderr, "ERROR : layer type not valid: '%s'", str);
-		bail("ERROR : layer type not valid: '" + str + "'\n");
+		bail("layer type not valid: '" + str + "'");
 	}
 
 	return NULL;
