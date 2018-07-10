@@ -17,7 +17,7 @@ The mojo cnn API provides a 'smart training' option which abstracts the manageme
 
 |                   | mojo specs  | 
 | ---------------------------- |--- | 
-| Layers | Input, Fully Connected, Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, DeepCNet, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers) |
+| Layers | Input, Fully Connected, Convolution, Grouped Convolution, Depth Wise Convolution, Max Pool, Semi-Stochastic Pool, Dropout, Max Feature Map, Resize, Shuffle, DeepCNet, Concatenation. [Read more on the wiki](https://github.com/gnawice/mojo-cnn/wiki/Layers) |
 | Activations | Identity, Hyperbolic Tangent (tanh), Exponential Linear Unit (ELU), Rectified Linear Unit (ReLU), Leaky Rectified Linear Unit (LReLU), Very Leaky Rectified Linear Unitv (VLReLU), Sigmoid, Softmax |
 | Solvers | Stochastic Gradient Descent, RMSProp, AdaGrad, Adam |
 | Loss Functions | Mean Squared Error, Cross Entropy |
@@ -33,7 +33,7 @@ The mojo cnn API provides a 'smart training' option which abstracts the manageme
 | Automatic training | yes | 
 | HTML Training Log and Graphing | yes |
 | GPU Support | no | 
-| Model Zoo | only MNIST and CIFAR-10 | 
+| Model Zoo | DeepCNet MNIST, DeepCNet CIFAR-10, VGG | 
 
 API Example:
 Load model and perform prediction:
@@ -63,7 +63,7 @@ cnn.push_back("P1","semi_stochastic_pool 4 4"); // pool 4x4 blocks, stride 4. ou
 cnn.push_back("C2","convolution 5 200 1 elu");  // 5x5 kernel, 200 maps.  out size is 6-5+1=2
 cnn.push_back("P2","semi_stochastic_pool 2 2"); // pool 2x2 blocks. out size is 2/2=1 
 cnn.push_back("FC1","fully_connected 100 identity");// fully connected 100 nodes 
-cnn.push_back("FC2","fully_connected 10 softmax"); 
+cnn.push_back("FC2","softmax 10"); 
  
 cnn.connect_all(); // connect layers automatically (no branches)
 
